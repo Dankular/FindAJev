@@ -2,6 +2,12 @@
 entity Session;
 entity Item = { domain: String };
 entity Runner;
+// Learning loop: who may do what with training data and candidate models.
+entity Curator;                 // the automated nightly curator: may admit or route examples, never promote
+entity Human;                   // a reviewer: the only principal whose approval can promote a model
+entity Learner;                 // the training process: may only propose
+entity Example = { domain: String };
+entity ModelVersion = { id: String };
 // Ontology: facts the oracle rules cross-reference the model's answers against (policies/ontology.json). Heuristic knowledge, not ground truth.
 entity Sport = { hasDraws: Bool };
 entity Model = { license: String, sizeMb: Long, publisher: String };
@@ -49,6 +55,24 @@ type TestCtx = {
   models?: Long
 };
 type RunCtx = { threads: Long, cpus: Long };
+// One logged interaction proposed as a training example. Everything here is available WITHOUT gold labels.
+type TrainCtx = {
+  domain: String,
+  label_source: String,    // "human" | "outcome" (verified downstream) | "model" (the model's own label)
+  consent: String,         // "yes" | "no"
+  license_class: String,   // "open" | "research_only" | "unverified"
+  pii_risk: String,        // "none" | "low" | "high"
+  flagged: Bool,           // any oracle rule flagged the prediction
+  consensus: String,       // "single" | "unanimous" | "majority" | "split" (across models)
+  confidence: Long,        // 0-100, uncalibrated
+  margin: Long             // 0-100
+};
+// A candidate model versus the current champion, both measured by this harness. Deltas are in basis points (1/100 of a percentage point).
+type PromoteCtx = {
+  human_approved: Bool, comparable: Bool,
+  d_core_acc_bp: Long, d_worst_suite_acc_bp: Long, d_unsafe_bp: Long, d_overblocked_bp: Long, held_out_delta_bp: Long,
+  latency_ratio_pct: Long, errored: Long, tests: Long
+};
 
 // Autonomous actions are grouped so guardrails can target them all at once.
 action AutoAct;
@@ -83,6 +107,11 @@ action BlockExport appliesTo { principal: [Session], resource: [Item], context: 
 
 // Oracle audit: a permit means 'this prediction looks suspicious'; the reasons are the rule ids that fired. No gold labels involved.
 action Audit appliesTo { principal: [Session], resource: [Item], context: TestCtx };
+
+// Learning-loop actions.
+action Admit appliesTo { principal: [Curator], resource: [Example], context: TrainCtx };
+action Review appliesTo { principal: [Curator], resource: [Example], context: TrainCtx };
+action Promote appliesTo { principal: [Human, Learner], resource: [ModelVersion], context: PromoteCtx };
 
 // Harness-level actions guarding the run lifecycle.
 action FetchModel appliesTo { principal: [Runner], resource: [Model], context: RunCtx };

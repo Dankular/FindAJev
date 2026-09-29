@@ -1965,5 +1965,565 @@
    "options": 2,
    "minMargin": 10
   }
+ },
+ {
+  "name": "train: human label admitted",
+  "kind": "train",
+  "action": "Admit",
+  "expect": "allow",
+  "ctx": {
+   "domain": "email_triage",
+   "label_source": "human",
+   "consent": "yes",
+   "license_class": "open",
+   "pii_risk": "low",
+   "flagged": false,
+   "consensus": "unanimous",
+   "confidence": 95,
+   "margin": 50
+  },
+  "by": "train.admit.human-label"
+ },
+ {
+  "name": "train: verified outcome admitted",
+  "kind": "train",
+  "action": "Admit",
+  "expect": "allow",
+  "ctx": {
+   "domain": "email_triage",
+   "label_source": "outcome",
+   "consent": "yes",
+   "license_class": "open",
+   "pii_risk": "low",
+   "flagged": false,
+   "consensus": "unanimous",
+   "confidence": 95,
+   "margin": 50
+  },
+  "by": "train.admit.verified-outcome"
+ },
+ {
+  "name": "train: model's own label is not evidence (default)",
+  "kind": "train",
+  "action": "Admit",
+  "expect": "deny",
+  "ctx": {
+   "domain": "email_triage",
+   "label_source": "model",
+   "consent": "yes",
+   "license_class": "open",
+   "pii_risk": "low",
+   "flagged": false,
+   "consensus": "unanimous",
+   "confidence": 95,
+   "margin": 50
+  }
+ },
+ {
+  "name": "train: no consent blocks human label",
+  "kind": "train",
+  "action": "Admit",
+  "expect": "deny",
+  "ctx": {
+   "domain": "email_triage",
+   "label_source": "human",
+   "consent": "no",
+   "license_class": "open",
+   "pii_risk": "low",
+   "flagged": false,
+   "consensus": "unanimous",
+   "confidence": 95,
+   "margin": 50
+  },
+  "by": "train.forbid.no-consent"
+ },
+ {
+  "name": "train: research-only source blocked",
+  "kind": "train",
+  "action": "Admit",
+  "expect": "deny",
+  "ctx": {
+   "domain": "email_triage",
+   "label_source": "human",
+   "consent": "yes",
+   "license_class": "research_only",
+   "pii_risk": "low",
+   "flagged": false,
+   "consensus": "unanimous",
+   "confidence": 95,
+   "margin": 50
+  },
+  "by": "train.forbid.source-not-open"
+ },
+ {
+  "name": "train: unverified licence blocked",
+  "kind": "train",
+  "action": "Admit",
+  "expect": "deny",
+  "ctx": {
+   "domain": "email_triage",
+   "label_source": "outcome",
+   "consent": "yes",
+   "license_class": "unverified",
+   "pii_risk": "low",
+   "flagged": false,
+   "consensus": "unanimous",
+   "confidence": 95,
+   "margin": 50
+  },
+  "by": "train.forbid.source-not-open"
+ },
+ {
+  "name": "train: high PII blocked even when human labelled",
+  "kind": "train",
+  "action": "Admit",
+  "expect": "deny",
+  "ctx": {
+   "domain": "email_triage",
+   "label_source": "human",
+   "consent": "yes",
+   "license_class": "open",
+   "pii_risk": "high",
+   "flagged": false,
+   "consensus": "unanimous",
+   "confidence": 95,
+   "margin": 50
+  },
+  "by": "train.forbid.pii"
+ },
+ {
+  "name": "train: flagged self label blocked",
+  "kind": "train",
+  "action": "Admit",
+  "expect": "deny",
+  "ctx": {
+   "domain": "email_triage",
+   "label_source": "model",
+   "consent": "yes",
+   "license_class": "open",
+   "pii_risk": "low",
+   "flagged": true,
+   "consensus": "unanimous",
+   "confidence": 95,
+   "margin": 50
+  },
+  "by": "train.forbid.flagged-self-label"
+ },
+ {
+  "name": "train: attack text never self-labelled",
+  "kind": "train",
+  "action": "Admit",
+  "expect": "deny",
+  "ctx": {
+   "domain": "injection",
+   "label_source": "model",
+   "consent": "yes",
+   "license_class": "open",
+   "pii_risk": "low",
+   "flagged": false,
+   "consensus": "unanimous",
+   "confidence": 95,
+   "margin": 50
+  },
+  "by": "train.forbid.attack-text-self-label"
+ },
+ {
+  "name": "train: human label of attack text is fine",
+  "kind": "train",
+  "action": "Admit",
+  "expect": "allow",
+  "ctx": {
+   "domain": "injection",
+   "label_source": "human",
+   "consent": "yes",
+   "license_class": "open",
+   "pii_risk": "low",
+   "flagged": false,
+   "consensus": "unanimous",
+   "confidence": 95,
+   "margin": 50
+  },
+  "by": "train.admit.human-label"
+ },
+ {
+  "name": "train: review: flagged",
+  "kind": "train",
+  "action": "Review",
+  "expect": "allow",
+  "ctx": {
+   "domain": "email_triage",
+   "label_source": "model",
+   "consent": "yes",
+   "license_class": "open",
+   "pii_risk": "low",
+   "flagged": true,
+   "consensus": "unanimous",
+   "confidence": 95,
+   "margin": 50
+  },
+  "by": "train.review.flagged"
+ },
+ {
+  "name": "train: review: split vote",
+  "kind": "train",
+  "action": "Review",
+  "expect": "allow",
+  "ctx": {
+   "domain": "email_triage",
+   "label_source": "model",
+   "consent": "yes",
+   "license_class": "open",
+   "pii_risk": "low",
+   "flagged": false,
+   "consensus": "split",
+   "confidence": 95,
+   "margin": 50
+  },
+  "by": "train.review.split-vote"
+ },
+ {
+  "name": "train: review: close call",
+  "kind": "train",
+  "action": "Review",
+  "expect": "allow",
+  "ctx": {
+   "domain": "email_triage",
+   "label_source": "model",
+   "consent": "yes",
+   "license_class": "open",
+   "pii_risk": "low",
+   "flagged": false,
+   "consensus": "unanimous",
+   "confidence": 95,
+   "margin": 19
+  },
+  "by": "train.review.close-call"
+ },
+ {
+  "name": "train: review: margin at the bar is not a close call",
+  "kind": "train",
+  "action": "Review",
+  "expect": "deny",
+  "ctx": {
+   "domain": "email_triage",
+   "label_source": "model",
+   "consent": "yes",
+   "license_class": "open",
+   "pii_risk": "low",
+   "flagged": false,
+   "consensus": "unanimous",
+   "confidence": 95,
+   "margin": 20
+  }
+ },
+ {
+  "name": "train: review: confident unanimous unflagged is skipped",
+  "kind": "train",
+  "action": "Review",
+  "expect": "deny",
+  "ctx": {
+   "domain": "email_triage",
+   "label_source": "model",
+   "consent": "yes",
+   "license_class": "open",
+   "pii_risk": "low",
+   "flagged": false,
+   "consensus": "unanimous",
+   "confidence": 95,
+   "margin": 50
+  }
+ },
+ {
+  "name": "train: review: no consent -> nobody looks",
+  "kind": "train",
+  "action": "Review",
+  "expect": "deny",
+  "ctx": {
+   "domain": "email_triage",
+   "label_source": "model",
+   "consent": "no",
+   "license_class": "open",
+   "pii_risk": "low",
+   "flagged": true,
+   "consensus": "unanimous",
+   "confidence": 95,
+   "margin": 50
+  },
+  "by": "train.forbid.review-privacy"
+ },
+ {
+  "name": "train: review: high PII -> nobody looks",
+  "kind": "train",
+  "action": "Review",
+  "expect": "deny",
+  "ctx": {
+   "domain": "email_triage",
+   "label_source": "model",
+   "consent": "yes",
+   "license_class": "open",
+   "pii_risk": "high",
+   "flagged": false,
+   "consensus": "split",
+   "confidence": 95,
+   "margin": 50
+  },
+  "by": "train.forbid.review-privacy"
+ },
+ {
+  "name": "promote: clean improvement",
+  "kind": "promote",
+  "principal": "Human",
+  "action": "Promote",
+  "expect": "allow",
+  "ctx": {
+   "human_approved": true,
+   "comparable": true,
+   "d_core_acc_bp": 50,
+   "d_worst_suite_acc_bp": 0,
+   "d_unsafe_bp": 0,
+   "d_overblocked_bp": 0,
+   "held_out_delta_bp": 0,
+   "latency_ratio_pct": 100,
+   "errored": 0,
+   "tests": 100
+  },
+  "by": "promote.permit-no-regression",
+  "exact": true
+ },
+ {
+  "name": "promote: learner cannot promote",
+  "kind": "promote",
+  "principal": "Learner",
+  "action": "Promote",
+  "expect": "deny",
+  "ctx": {
+   "human_approved": true,
+   "comparable": true,
+   "d_core_acc_bp": 50,
+   "d_worst_suite_acc_bp": 0,
+   "d_unsafe_bp": 0,
+   "d_overblocked_bp": 0,
+   "held_out_delta_bp": 0,
+   "latency_ratio_pct": 100,
+   "errored": 0,
+   "tests": 100
+  },
+  "by": "promote.forbid-learner"
+ },
+ {
+  "name": "promote: no human approval",
+  "kind": "promote",
+  "principal": "Human",
+  "action": "Promote",
+  "expect": "deny",
+  "ctx": {
+   "human_approved": false,
+   "comparable": true,
+   "d_core_acc_bp": 50,
+   "d_worst_suite_acc_bp": 0,
+   "d_unsafe_bp": 0,
+   "d_overblocked_bp": 0,
+   "held_out_delta_bp": 0,
+   "latency_ratio_pct": 100,
+   "errored": 0,
+   "tests": 100
+  },
+  "by": "promote.forbid-no-approval"
+ },
+ {
+  "name": "promote: not comparable",
+  "kind": "promote",
+  "principal": "Human",
+  "action": "Promote",
+  "expect": "deny",
+  "ctx": {
+   "human_approved": true,
+   "comparable": false,
+   "d_core_acc_bp": 50,
+   "d_worst_suite_acc_bp": 0,
+   "d_unsafe_bp": 0,
+   "d_overblocked_bp": 0,
+   "held_out_delta_bp": 0,
+   "latency_ratio_pct": 100,
+   "errored": 0,
+   "tests": 100
+  },
+  "by": "promote.forbid-not-comparable"
+ },
+ {
+  "name": "promote: accuracy regression on core: no permit",
+  "kind": "promote",
+  "principal": "Human",
+  "action": "Promote",
+  "expect": "deny",
+  "ctx": {
+   "human_approved": true,
+   "comparable": true,
+   "d_core_acc_bp": -1,
+   "d_worst_suite_acc_bp": 0,
+   "d_unsafe_bp": 0,
+   "d_overblocked_bp": 0,
+   "held_out_delta_bp": 0,
+   "latency_ratio_pct": 100,
+   "errored": 0,
+   "tests": 100
+  }
+ },
+ {
+  "name": "promote: unsafe rise at the limit passes",
+  "kind": "promote",
+  "principal": "Human",
+  "action": "Promote",
+  "expect": "allow",
+  "ctx": {
+   "human_approved": true,
+   "comparable": true,
+   "d_core_acc_bp": 50,
+   "d_worst_suite_acc_bp": 0,
+   "d_unsafe_bp": 50,
+   "d_overblocked_bp": 0,
+   "held_out_delta_bp": 0,
+   "latency_ratio_pct": 100,
+   "errored": 0,
+   "tests": 100
+  }
+ },
+ {
+  "name": "promote: unsafe rise over the limit",
+  "kind": "promote",
+  "principal": "Human",
+  "action": "Promote",
+  "expect": "deny",
+  "ctx": {
+   "human_approved": true,
+   "comparable": true,
+   "d_core_acc_bp": 50,
+   "d_worst_suite_acc_bp": 0,
+   "d_unsafe_bp": 51,
+   "d_overblocked_bp": 0,
+   "held_out_delta_bp": 0,
+   "latency_ratio_pct": 100,
+   "errored": 0,
+   "tests": 100
+  },
+  "by": "promote.forbid-unsafe-rise"
+ },
+ {
+  "name": "promote: suite drop at the limit passes",
+  "kind": "promote",
+  "principal": "Human",
+  "action": "Promote",
+  "expect": "allow",
+  "ctx": {
+   "human_approved": true,
+   "comparable": true,
+   "d_core_acc_bp": 50,
+   "d_worst_suite_acc_bp": -100,
+   "d_unsafe_bp": 0,
+   "d_overblocked_bp": 0,
+   "held_out_delta_bp": 0,
+   "latency_ratio_pct": 100,
+   "errored": 0,
+   "tests": 100
+  }
+ },
+ {
+  "name": "promote: suite drop over the limit",
+  "kind": "promote",
+  "principal": "Human",
+  "action": "Promote",
+  "expect": "deny",
+  "ctx": {
+   "human_approved": true,
+   "comparable": true,
+   "d_core_acc_bp": 50,
+   "d_worst_suite_acc_bp": -101,
+   "d_unsafe_bp": 0,
+   "d_overblocked_bp": 0,
+   "held_out_delta_bp": 0,
+   "latency_ratio_pct": 100,
+   "errored": 0,
+   "tests": 100
+  },
+  "by": "promote.forbid-suite-drop"
+ },
+ {
+  "name": "promote: held-out suite got worse",
+  "kind": "promote",
+  "principal": "Human",
+  "action": "Promote",
+  "expect": "deny",
+  "ctx": {
+   "human_approved": true,
+   "comparable": true,
+   "d_core_acc_bp": 50,
+   "d_worst_suite_acc_bp": 0,
+   "d_unsafe_bp": 0,
+   "d_overblocked_bp": 0,
+   "held_out_delta_bp": -1,
+   "latency_ratio_pct": 100,
+   "errored": 0,
+   "tests": 100
+  },
+  "by": "promote.forbid-heldout-drop"
+ },
+ {
+  "name": "promote: errored tests",
+  "kind": "promote",
+  "principal": "Human",
+  "action": "Promote",
+  "expect": "deny",
+  "ctx": {
+   "human_approved": true,
+   "comparable": true,
+   "d_core_acc_bp": 50,
+   "d_worst_suite_acc_bp": 0,
+   "d_unsafe_bp": 0,
+   "d_overblocked_bp": 0,
+   "held_out_delta_bp": 0,
+   "latency_ratio_pct": 100,
+   "errored": 1,
+   "tests": 100
+  },
+  "by": "promote.forbid-errors"
+ },
+ {
+  "name": "promote: latency at the limit passes",
+  "kind": "promote",
+  "principal": "Human",
+  "action": "Promote",
+  "expect": "allow",
+  "ctx": {
+   "human_approved": true,
+   "comparable": true,
+   "d_core_acc_bp": 50,
+   "d_worst_suite_acc_bp": 0,
+   "d_unsafe_bp": 0,
+   "d_overblocked_bp": 0,
+   "held_out_delta_bp": 0,
+   "latency_ratio_pct": 130,
+   "errored": 0,
+   "tests": 100
+  }
+ },
+ {
+  "name": "promote: latency over the limit",
+  "kind": "promote",
+  "principal": "Human",
+  "action": "Promote",
+  "expect": "deny",
+  "ctx": {
+   "human_approved": true,
+   "comparable": true,
+   "d_core_acc_bp": 50,
+   "d_worst_suite_acc_bp": 0,
+   "d_unsafe_bp": 0,
+   "d_overblocked_bp": 0,
+   "held_out_delta_bp": 0,
+   "latency_ratio_pct": 131,
+   "errored": 0,
+   "tests": 100
+  },
+  "by": "promote.forbid-slower"
  }
 ]

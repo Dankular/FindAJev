@@ -3,5 +3,11 @@
   "min_conf_few": 60,
   "min_conf_many": 35,
   "few_max_options": 4,
-  "oracle_margin": 10
+  "oracle_margin": 10,
+  "admit_self_labels": 0,
+  "admit_min_conf": 90,
+  "review_margin": 20,
+  "promote_max_unsafe_rise_bp": 50,
+  "promote_max_suite_drop_bp": 100,
+  "promote_max_latency_pct": 130
 }

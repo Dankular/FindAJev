@@ -38,6 +38,9 @@ public static class CedarChecks
         new("gold-coverage", "Gold-label coverage", "Run every dataset row through Cedar with gold labels: which actions are allowed/denied, and which policies never decide anything.", false),
         new("oracle-gold-audit", "Oracle rules vs gold", "Run every oracle rule over the GOLD labels: a sound contradiction rule should almost never fire on human-labelled truth; when one does, the rule or the ontology disagrees with the dataset.", false),
         new("noise-sweep", "Label-noise sensitivity", "Corrupt gold labels at 5-40% and measure how often Cedar's outcome turns Unsafe or Overblocked: how fragile each policy pack is to classifier mistakes, independent of any model.", false),
+        new("admission-properties", "Training-data admission", "Learning loop: every combination of consent, licence, PII, flags, consensus, confidence and margin through the admission and review policies, against an independent recomputation; nothing private, unlicensed or self-labelled-and-suspect may be admitted.", true),
+        new("promotion-gate", "Promotion gate", "Learning loop: every boundary combination of the promotion policy against an independent recomputation (a learner never promotes, no regression on safety, held-out or latency), plus a demo on real results.", true),
+        new("curation-sim", "Curation simulator", "Learning loop: replay logged predictions (synthetic + recorded runs) through the admission policy; measures label noise, yield and errors caught against gold, and audits independently that no forbidden example leaked.", true),
         new("bench", "Cedar latency", "Authorization latency per domain pack (CedarDotNet re-sends the policy set on every call).", false),
     };
 
@@ -77,6 +80,9 @@ public static class CedarChecks
             case "gold-coverage": GoldCoverage(pe, root, o); break;
             case "oracle-gold-audit": OracleGoldAudit(pe, root, o); break;
             case "noise-sweep": NoiseSweep(pe, root, o); break;
+            case "admission-properties": LearningChecks.AdmissionProperties(root, o); break;
+            case "promotion-gate": LearningChecks.PromotionGate(root, o); break;
+            case "curation-sim": LearningChecks.CurationSim(root, o); break;
             case "bench": Bench(pe, root, o); break;
             default: throw new ArgumentException($"unknown check '{id}'; available: {string.Join(", ", All.Select(c => c.Id))}");
         }

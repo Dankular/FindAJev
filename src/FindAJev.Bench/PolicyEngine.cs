@@ -29,6 +29,8 @@ public sealed class PolicyEngine
     readonly Dictionary<string, string> _run = new();    // id -> text, run-lifecycle policies
     readonly Dictionary<string, string> _oracle = new(); // id -> text, label-free oracle rules (Action::"Audit")
     readonly Dictionary<string, PolicySet> _oracleByDomain = new();
+    readonly Dictionary<string, string> _train = new();   // learning loop: training-data admission (Admit / Review)
+    readonly Dictionary<string, string> _promote = new(); // learning loop: candidate-model promotion (Promote)
     readonly List<Entity> _ontology = new();
     readonly Dictionary<string, PolicySet> _byDomain = new();
     public PolicyEngine Reordered() { var r = WithTestPolicies(_test.Reverse().ToDictionary(kv => kv.Key, kv => kv.Value)); return r; }
@@ -37,6 +39,8 @@ public sealed class PolicyEngine
     public int PolicyCountFor(string domain) => _byDomain[domain].StaticPolicies.Count;
     public IReadOnlyDictionary<string, string> RunPolicies => _run;
     public IReadOnlyDictionary<string, string> OraclePolicies => _oracle;
+    public IReadOnlyDictionary<string, string> TrainPolicies => _train;
+    public IReadOnlyDictionary<string, string> PromotePolicies => _promote;
 
     /// <summary>Effective policy parameters (params.json + overrides).</summary>
     public IReadOnlyDictionary<string, long> Params { get; }
@@ -74,7 +78,8 @@ public sealed class PolicyEngine
         foreach (var file in Directory.GetFiles(dir, "*.cedar").OrderBy(f => f))
         {
             var fname = Path.GetFileName(file);
-            var target = fname == "run.cedar" ? _run : fname.StartsWith("oracle") ? _oracle : _test;
+            var target = fname == "run.cedar" ? _run : fname.StartsWith("oracle") ? _oracle : fname.StartsWith("training") ? _train
+                       : fname.StartsWith("promote") ? _promote : _test;
             var source = ParamRx.Replace(File.ReadAllText(file), m =>
                 pp.TryGetValue(m.Groups[1].Value, out var val) ? val.ToString() : throw new InvalidDataException($"{file}: unknown parameter {{{{{m.Groups[1].Value}}}}}"));
             foreach (var text in CedarUtilities.LoadPolicySet(source))
@@ -115,7 +120,7 @@ public sealed class PolicyEngine
     public List<string> Validate()
     {
         var problems = new List<string>();
-        foreach (var (name, set) in new[] { ("test", _test), ("run", _run), ("oracle", _oracle) })
+        foreach (var (name, set) in new[] { ("test", _test), ("run", _run), ("oracle", _oracle), ("training", _train), ("promote", _promote) })
         {
             var call = new JsonObject
             {
@@ -205,6 +210,22 @@ public sealed class PolicyEngine
             AuthorizationAnswerFailure bad => new PolicyDecision("Audit", false, Array.Empty<string>(), string.Join("; ", bad.Errors.Select(e => e.Message))),
             _ => new PolicyDecision("Audit", false, Array.Empty<string>(), "unknown answer"),
         };
+    }
+
+    static readonly EntityUid Curator = EntityUid.Create("Curator", "nightly");
+
+    /// <summary>Learning loop: may this logged interaction be admitted to training (Admit) or shown to a human (Review)? ctx: see TrainCtx in the schema.</summary>
+    public PolicyDecision AuthorizeTrain(string action, string domain, Dictionary<string, Value> ctx)
+    {
+        var example = new Entity { Uid = EntityUid.Create("Example", "e"), Attrs = new Dictionary<string, Value> { ["domain"] = domain } };
+        return Call(action, Curator, example, null, ctx, new PolicySet { StaticPolicies = _train });
+    }
+
+    /// <summary>Learning loop: may this principal (Human or Learner) promote a candidate model? ctx: see PromoteCtx in the schema.</summary>
+    public PolicyDecision AuthorizePromote(string principalType, string candidateId, Dictionary<string, Value> ctx)
+    {
+        var model = new Entity { Uid = EntityUid.Create("ModelVersion", candidateId), Attrs = new Dictionary<string, Value> { ["id"] = candidateId } };
+        return Call("Promote", EntityUid.Create(principalType, "p"), model, null, ctx, new PolicySet { StaticPolicies = _promote });
     }
 
     /// <summary>The domain an oracle rule is written for (its text names the domain), or null for a generic rule.</summary>

@@ -1,0 +1,13 @@
+{
+  "_doc": "Data governance per domain for the learning loop: the licence class of the source. Domains not listed are 'open'. 'unverified' and 'research_only' sources are never admitted to product training (policies/training.cedar).",
+  "domains": {
+    "pii": {
+      "license_class": "research_only",
+      "source": "ai4privacy/pii-masking-300k (card: academic use with citation)"
+    },
+    "retrieval": {
+      "license_class": "unverified",
+      "source": "microsoft/ms_marco (licence not verified)"
+    }
+  }
+}

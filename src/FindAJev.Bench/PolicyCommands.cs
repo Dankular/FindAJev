@@ -78,7 +78,19 @@ public static class PolicyCommands
             var name = c!["name"]!.GetValue<string>();
             var action = c["action"]!.GetValue<string>();
             PolicyDecision d;
-            if (c["kind"]!.GetValue<string>() == "run")
+            var kind = c["kind"]!.GetValue<string>();
+            if (kind is "train" or "promote")
+            {
+                var tctx = new Dictionary<string, Value>();
+                foreach (var (k, v) in c["ctx"]!.AsObject())
+                    tctx[k] = v!.GetValueKind() switch
+                    {
+                        JsonValueKind.Number => (Value)v.GetValue<long>(), JsonValueKind.True => (Value)true, JsonValueKind.False => (Value)false, _ => (Value)v.GetValue<string>(),
+                    };
+                d = kind == "train" ? pe.AuthorizeTrain(action, tctx["domain"] is StringValue sv ? sv.Value : "x", tctx)
+                                    : pe.AuthorizePromote(c["principal"]!.GetValue<string>(), "candidate", tctx);
+            }
+            else if (kind == "run")
             {
                 var spec = new ModelSpec("case", "x", "org/case", "x", "fp32", c["license"]!.GetValue<string>(), c["sizeMb"]!.GetValue<int>());
                 d = pe.AuthorizeRun(action, spec, c["threads"]!.GetValue<int>(), c["cpus"]!.GetValue<int>());

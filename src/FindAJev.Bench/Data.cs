@@ -3,7 +3,7 @@ using System.Text.Json.Nodes;
 
 namespace FindAJev.Bench;
 
-public sealed record SuiteDef(string Id, string Title, string Dataset, string File, string[] Provides);
+public sealed record SuiteDef(string Id, string Title, string Dataset, string File, string[] Provides, bool HeldOut = false);
 
 public static class Data
 {
@@ -13,7 +13,8 @@ public static class Data
         var path = Path.Combine(root, "suites.json");
         var arr = JsonNode.Parse(File.ReadAllText(path))!["suites"]!.AsArray();
         return arr.Select(n => new SuiteDef(n!["id"]!.GetValue<string>(), n["title"]!.GetValue<string>(), n["dataset"]!.GetValue<string>(),
-            n["file"]!.GetValue<string>(), n["provides"]!.AsArray().Select(x => x!.GetValue<string>()).ToArray())).ToList();
+            n["file"]!.GetValue<string>(), n["provides"]!.AsArray().Select(x => x!.GetValue<string>()).ToArray(),
+            n["heldOut"]?.GetValue<bool>() ?? false)).ToList();
     }
 
     /// <summary>

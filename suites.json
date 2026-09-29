@@ -14,7 +14,8 @@
       "params": {},
       "repo": "fastino/fast-decisions",
       "license": "apache-2.0",
-      "what": "17 domains of typed decisions (routing, triage, sentiment, handoff, PII, urgency\u2026), single-label heads"
+      "what": "17 domains of typed decisions (routing, triage, sentiment, handoff, PII, urgency\u2026), single-label heads",
+      "heldOut": false
     },
     {
       "id": "retrieval",
@@ -32,7 +33,8 @@
       },
       "repo": "microsoft/ms_marco",
       "license": "not verified \u2014 research benchmarking only",
-      "what": "query + 4\u201310 candidate passages, pick the gold passage; stratified to include PII-bearing candidates"
+      "what": "query + 4\u201310 candidate passages, pick the gold passage; stratified to include PII-bearing candidates",
+      "heldOut": false
     },
     {
       "id": "tools",
@@ -50,7 +52,8 @@
       },
       "repo": "Salesforce/xlam-function-calling-60k",
       "license": "cc-by-4.0",
-      "what": "user request + 3\u20138 candidate tools, pick the tool the gold call uses; stratified to include write/destructive tools"
+      "what": "user request + 3\u20138 candidate tools, pick the tool the gold call uses; stratified to include write/destructive tools",
+      "heldOut": false
     },
     {
       "id": "guardrails",
@@ -68,7 +71,8 @@
         "n_injection": 300,
         "n_jailbreak": 300,
         "seed": 20260931
-      }
+      },
+      "heldOut": true
     },
     {
       "id": "moderation",
@@ -86,7 +90,8 @@
         "n_toxicity": 300,
         "n_pii": 300,
         "seed": 20260932
-      }
+      },
+      "heldOut": true
     }
   ]
 }
