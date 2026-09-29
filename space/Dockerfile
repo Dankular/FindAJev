@@ -26,8 +26,9 @@ COPY results ./results
 # Fail the image build if the policies do not validate or a golden case regresses.
 RUN dotnet bin/FindAJev.Bench.dll policy-test
 
-# Spaces run the container as uid 1000
-RUN useradd -m -u 1000 user && mkdir -p /app/models /app/data /app/.cache && chown -R 1000:1000 /app
-USER user
+# Spaces run the container as uid 1000; the .NET 10 base image already has a user with that uid, so use it numerically
+ENV HOME=/app
+RUN mkdir -p /app/models /app/data /app/.cache && chown -R 1000:1000 /app
+USER 1000
 EXPOSE 7860
 CMD ["uvicorn", "server:app", "--host", "0.0.0.0", "--port", "7860"]
