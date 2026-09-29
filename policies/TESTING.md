@@ -79,15 +79,34 @@ tickets, `mortgage`, `refund_request`); they are fixed and pinned by golden case
 * 🟡 **Time-bound access** with `datetime`/`duration`: business hours, expiry, DST edges.
 * 🟡 **Network-bound access** with `ip` ranges from a request-origin label.
 * 🟡 **Multi-tenant isolation fuzz**: generated tenants/resources; metamorphic check that renaming tenants never changes decisions and no cross-tenant allow exists.
-* 🔬 **Prompt-injection / jailbreak guardrail suite**: classifier labels "injection: yes/no", Cedar forbids tool use. Needs a dataset; I have not verified one — use the `jsonl` loader with your own rows or a dataset you pick.
-* 🔬 **Content moderation / PII redaction suite** (toxicity, PII spans → publish/redact/escalate): same — dataset not verified.
+* ✅ **Guardrails suite** (prompt injection, harmful requests, jailbreaks): the classifier labels a prompt, Cedar decides `ForwardToLLM` / `BlockAndLog` / `EscalateHuman`.
+* ✅ **Moderation suite** (toxicity, PII risk class): Cedar decides `Publish` / `HideComment` / `ShareText` / `AutoRedact` / `BlockExport` / `EscalateHuman`.
+* 🟡 More attack data: `xTRam1/safe-guard-prompt-injection` (~10k, binary), `Lakera/mosscap_prompt_injection`, indirect prompt injection in agent settings (`nvidia/Nemotron-RL-Agentic-Indirect-Prompt-Injection-v1`) — found on the Hub, schemas not inspected.
+* 🟡 More moderation/PII data: `textdetox/multilingual_toxicity_dataset` (multilingual, OpenRAIL++), `nvidia/Nemotron-PII`, `gretelai/gretel-pii-masking-en-v1` — found, not inspected.
 * 🟡 **Calibration-aware thresholds**: fit the confidence bar from data instead of the current heuristic (60 / 35).
 
 ### Operations
 * 🟡 Policy change review: on every policy edit, run mutation + properties and post the diff of Unsafe/Overblocked rates (a "policy regression report").
 * 🟡 Audit trail: persist every test's Cedar request + decision + policy ids (already streamed as `verdict` events) for replay.
 
-## 5. Adding your own
+## 5. Datasets behind the suites (inspected, not assumed)
+
+| suite | domain | source | label design | licence (from the card) |
+|---|---|---|---|---|
+| core | 17 domains | `fastino/fast-decisions` | typed decisions, single-label heads | apache-2.0 |
+| retrieval | retrieval | `microsoft/ms_marco` v1.1 validation | gold passage among 4–10; PII-bearing candidates over-sampled (they are 0.3 % of passages) | not verified — research benchmarking only |
+| tools | tools | `Salesforce/xlam-function-calling-60k` (official when the environment's HF token has accepted it, else the byte-identical `lockon` mirror) | tool named by the gold call among 3–8; write/destructive tools over-sampled; risk from the tool *name's* leading verb (heuristic) | cc-by-4.0 |
+| guardrails | injection | `deepset/prompt-injections` (train+test) | benign / injection, 150 + 150 | apache-2.0 |
+| guardrails | harmful_request | `JailbreakBench/JBB-Behaviors` | 100 harmful goals + their 100 matched benign counterparts; JBB category is test-level context (not a model output) | mit |
+| guardrails | jailbreak | `TrustAIRLab/in-the-wild-jailbreak-prompts` (2023-12-25) | jailbreak vs regular prompts from the same platforms, 150 + 150; text cut to 1500 chars (jailbreak prompts are long) | mit |
+| moderation | toxicity | `tasksource/jigsaw_toxicity` | threat > identity_hate > toxic (toxic/severe/obscene/insult) > clean; 100 / 100 / 50 / 50 | apache-2.0 (card); derived from the Jigsaw competition data |
+| moderation | pii | `ai4privacy/pii-masking-300k` English validation | risk class of the riskiest entity: none < personal < contact < government_id < credentials; 60 each | **`other`: academic use with citation, commercial entities must contact ai4privacy — research benchmarking only** |
+
+Every option order is shuffled per item with a fixed seed in the guardrails and moderation suites (no positional advantage). A test is one dataset row; the
+encoder refuses to write a non-core suite whose test keys are not unique (a duplicate makes the harness merge items into one test — this happened once and
+the exhaustive checks noticed).
+
+## 6. Adding your own
 
 * **A dataset/suite**: add an entry to `suites.json`. Use loader `jsonl` for your own rows (`text`, `labels`, `gold`, optional `optAttrs` for per-option facts that become Cedar context). Add a pack in `policies/packs.json` to enforce policies on it.
 * **A policy parameter**: put `{{name}}` in a `.cedar` file and the default in `params.json`; runs can override it (`--param name=value`, or the dashboard) and are ranked separately.

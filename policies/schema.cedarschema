@@ -28,7 +28,13 @@ type TestCtx = {
   travel_intent?: String,
   passage_pii?: String,
   passage_source?: String,
-  tool_risk?: String
+  tool_risk?: String,
+  injection_label?: String,
+  harm_label?: String,
+  harm_category?: String,
+  jailbreak_label?: String,
+  tox_label?: String,
+  pii_class?: String
 };
 type RunCtx = { threads: Long, cpus: Long };
 
@@ -53,6 +59,15 @@ action InvokeTool in [AutoAct] appliesTo { principal: [Session], resource: [Item
 action RedactPassage appliesTo { principal: [Session], resource: [Item], context: TestCtx };
 action CitePassage appliesTo { principal: [Session], resource: [Item], context: TestCtx };
 action RequireApproval appliesTo { principal: [Session], resource: [Item], context: TestCtx };
+
+// Guardrails + Moderation suites.
+action ForwardToLLM in [AutoAct] appliesTo { principal: [Session], resource: [Item], context: TestCtx };
+action Publish in [AutoAct] appliesTo { principal: [Session], resource: [Item], context: TestCtx };
+action HideComment in [AutoAct] appliesTo { principal: [Session], resource: [Item], context: TestCtx };
+action ShareText in [AutoAct] appliesTo { principal: [Session], resource: [Item], context: TestCtx };
+action AutoRedact in [AutoAct] appliesTo { principal: [Session], resource: [Item], context: TestCtx };
+action BlockAndLog appliesTo { principal: [Session], resource: [Item], context: TestCtx };
+action BlockExport appliesTo { principal: [Session], resource: [Item], context: TestCtx };
 
 // Harness-level actions guarding the run lifecycle.
 action FetchModel appliesTo { principal: [Runner], resource: [Model], context: RunCtx };

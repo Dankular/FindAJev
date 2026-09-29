@@ -24,7 +24,8 @@ public sealed record Item(
     [property: JsonPropertyName("task")] string Task = "",
     [property: JsonPropertyName("labels")] string[]? Labels = null,
     [property: JsonPropertyName("suite")] string Suite = "",
-    [property: JsonPropertyName("optAttrs")] Dictionary<string, string[]>? OptAttrs = null);
+    [property: JsonPropertyName("optAttrs")] Dictionary<string, string[]>? OptAttrs = null,
+    [property: JsonPropertyName("ctx")] Dictionary<string, string>? Ctx = null);
 
 public sealed class RunResult
 {

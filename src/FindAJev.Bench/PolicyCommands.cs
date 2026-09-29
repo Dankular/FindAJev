@@ -29,6 +29,8 @@ public static class Rows
     {
         var pack = pe.Packs[row.Domain];
         var attrs = new List<KeyValuePair<string, string>>();
+        // test-level facts from the dataset (e.g. a harm category): not model outputs, so identical on the model's side and the gold side
+        foreach (var (k, v) in row.Heads[0].Ctx ?? new Dictionary<string, string>()) attrs.Add(new(k, v));
         foreach (var h in row.Heads)
         {
             if (pack.Heads.TryGetValue(h.Task, out var attr) && h.Labels is not null)

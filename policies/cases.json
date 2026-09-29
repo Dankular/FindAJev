@@ -1145,5 +1145,491 @@
    "minConfidence": 30,
    "options": 5
   }
+ },
+ {
+  "name": "injection: benign is forwarded",
+  "kind": "test",
+  "domain": "injection",
+  "action": "ForwardToLLM",
+  "expect": "allow",
+  "ctx": {
+   "minConfidence": 100,
+   "options": 2,
+   "injection_label": "benign"
+  },
+  "by": "attack.injection.forward-benign",
+  "exact": true
+ },
+ {
+  "name": "injection: attack is not forwarded",
+  "kind": "test",
+  "domain": "injection",
+  "action": "ForwardToLLM",
+  "expect": "deny",
+  "ctx": {
+   "minConfidence": 100,
+   "options": 2,
+   "injection_label": "injection"
+  },
+  "by": "attack.injection.forbid-forward-attack",
+  "exact": true
+ },
+ {
+  "name": "injection: attack is blocked and logged",
+  "kind": "test",
+  "domain": "injection",
+  "action": "BlockAndLog",
+  "expect": "allow",
+  "ctx": {
+   "minConfidence": 100,
+   "options": 2,
+   "injection_label": "injection"
+  },
+  "by": "attack.injection.block-attack"
+ },
+ {
+  "name": "injection: benign needs no block",
+  "kind": "test",
+  "domain": "injection",
+  "action": "BlockAndLog",
+  "expect": "deny",
+  "ctx": {
+   "minConfidence": 100,
+   "options": 2,
+   "injection_label": "benign"
+  }
+ },
+ {
+  "name": "injection: benign forward blocked at low confidence",
+  "kind": "test",
+  "domain": "injection",
+  "action": "ForwardToLLM",
+  "expect": "deny",
+  "ctx": {
+   "minConfidence": 59,
+   "options": 2,
+   "injection_label": "benign"
+  },
+  "by": "guard.low-confidence"
+ },
+ {
+  "name": "jailbreak: benign is forwarded",
+  "kind": "test",
+  "domain": "jailbreak",
+  "action": "ForwardToLLM",
+  "expect": "allow",
+  "ctx": {
+   "minConfidence": 100,
+   "options": 2,
+   "jailbreak_label": "benign"
+  },
+  "by": "attack.jailbreak.forward-benign",
+  "exact": true
+ },
+ {
+  "name": "jailbreak: attack is not forwarded",
+  "kind": "test",
+  "domain": "jailbreak",
+  "action": "ForwardToLLM",
+  "expect": "deny",
+  "ctx": {
+   "minConfidence": 100,
+   "options": 2,
+   "jailbreak_label": "jailbreak"
+  },
+  "by": "attack.jailbreak.forbid-forward-attack",
+  "exact": true
+ },
+ {
+  "name": "jailbreak: attack is blocked and logged",
+  "kind": "test",
+  "domain": "jailbreak",
+  "action": "BlockAndLog",
+  "expect": "allow",
+  "ctx": {
+   "minConfidence": 100,
+   "options": 2,
+   "jailbreak_label": "jailbreak"
+  },
+  "by": "attack.jailbreak.block-attack"
+ },
+ {
+  "name": "jailbreak: benign needs no block",
+  "kind": "test",
+  "domain": "jailbreak",
+  "action": "BlockAndLog",
+  "expect": "deny",
+  "ctx": {
+   "minConfidence": 100,
+   "options": 2,
+   "jailbreak_label": "benign"
+  }
+ },
+ {
+  "name": "jailbreak: benign forward blocked at low confidence",
+  "kind": "test",
+  "domain": "jailbreak",
+  "action": "ForwardToLLM",
+  "expect": "deny",
+  "ctx": {
+   "minConfidence": 59,
+   "options": 2,
+   "jailbreak_label": "benign"
+  },
+  "by": "guard.low-confidence"
+ },
+ {
+  "name": "harmful_request: benign is forwarded",
+  "kind": "test",
+  "domain": "harmful_request",
+  "action": "ForwardToLLM",
+  "expect": "allow",
+  "ctx": {
+   "minConfidence": 100,
+   "options": 2,
+   "harm_label": "benign"
+  },
+  "by": "attack.harm.forward-benign",
+  "exact": true
+ },
+ {
+  "name": "harmful_request: attack is not forwarded",
+  "kind": "test",
+  "domain": "harmful_request",
+  "action": "ForwardToLLM",
+  "expect": "deny",
+  "ctx": {
+   "minConfidence": 100,
+   "options": 2,
+   "harm_label": "harmful"
+  },
+  "by": "attack.harm.forbid-forward-harmful",
+  "exact": true
+ },
+ {
+  "name": "harmful_request: attack is blocked and logged",
+  "kind": "test",
+  "domain": "harmful_request",
+  "action": "BlockAndLog",
+  "expect": "allow",
+  "ctx": {
+   "minConfidence": 100,
+   "options": 2,
+   "harm_label": "harmful"
+  },
+  "by": "attack.harm.block-harmful"
+ },
+ {
+  "name": "harmful_request: benign needs no block",
+  "kind": "test",
+  "domain": "harmful_request",
+  "action": "BlockAndLog",
+  "expect": "deny",
+  "ctx": {
+   "minConfidence": 100,
+   "options": 2,
+   "harm_label": "benign"
+  }
+ },
+ {
+  "name": "harmful_request: benign forward blocked at low confidence",
+  "kind": "test",
+  "domain": "harmful_request",
+  "action": "ForwardToLLM",
+  "expect": "deny",
+  "ctx": {
+   "minConfidence": 59,
+   "options": 2,
+   "harm_label": "benign"
+  },
+  "by": "guard.low-confidence"
+ },
+ {
+  "name": "harm: severe category escalates",
+  "kind": "test",
+  "domain": "harmful_request",
+  "action": "EscalateHuman",
+  "expect": "allow",
+  "ctx": {
+   "minConfidence": 100,
+   "options": 2,
+   "harm_label": "harmful",
+   "harm_category": "Physical harm"
+  },
+  "by": "attack.harm.escalate-severe"
+ },
+ {
+  "name": "harm: non-severe category does not escalate",
+  "kind": "test",
+  "domain": "harmful_request",
+  "action": "EscalateHuman",
+  "expect": "deny",
+  "ctx": {
+   "minConfidence": 100,
+   "options": 2,
+   "harm_label": "harmful",
+   "harm_category": "Disinformation"
+  }
+ },
+ {
+  "name": "harm: benign request in a severe category does not escalate",
+  "kind": "test",
+  "domain": "harmful_request",
+  "action": "EscalateHuman",
+  "expect": "deny",
+  "ctx": {
+   "minConfidence": 100,
+   "options": 2,
+   "harm_label": "benign",
+   "harm_category": "Physical harm"
+  }
+ },
+ {
+  "name": "toxicity: clean is published",
+  "kind": "test",
+  "domain": "toxicity",
+  "action": "Publish",
+  "expect": "allow",
+  "ctx": {
+   "minConfidence": 100,
+   "options": 4,
+   "tox_label": "clean"
+  },
+  "by": "mod.publish.permit-clean",
+  "exact": true
+ },
+ {
+  "name": "toxicity: toxic is not published",
+  "kind": "test",
+  "domain": "toxicity",
+  "action": "Publish",
+  "expect": "deny",
+  "ctx": {
+   "minConfidence": 100,
+   "options": 4,
+   "tox_label": "toxic"
+  },
+  "by": "mod.publish.forbid-flagged"
+ },
+ {
+  "name": "toxicity: hate is not published",
+  "kind": "test",
+  "domain": "toxicity",
+  "action": "Publish",
+  "expect": "deny",
+  "ctx": {
+   "minConfidence": 100,
+   "options": 4,
+   "tox_label": "hate"
+  },
+  "by": "mod.publish.forbid-flagged"
+ },
+ {
+  "name": "toxicity: threat is not published",
+  "kind": "test",
+  "domain": "toxicity",
+  "action": "Publish",
+  "expect": "deny",
+  "ctx": {
+   "minConfidence": 100,
+   "options": 4,
+   "tox_label": "threat"
+  },
+  "by": "mod.publish.forbid-flagged"
+ },
+ {
+  "name": "toxicity: toxic is auto-hidden",
+  "kind": "test",
+  "domain": "toxicity",
+  "action": "HideComment",
+  "expect": "allow",
+  "ctx": {
+   "minConfidence": 100,
+   "options": 4,
+   "tox_label": "toxic"
+  },
+  "by": "mod.hide.permit-toxic-hate"
+ },
+ {
+  "name": "toxicity: threat is never auto-hidden",
+  "kind": "test",
+  "domain": "toxicity",
+  "action": "HideComment",
+  "expect": "deny",
+  "ctx": {
+   "minConfidence": 100,
+   "options": 4,
+   "tox_label": "threat"
+  },
+  "by": "mod.hide.forbid-threat"
+ },
+ {
+  "name": "toxicity: threat escalates",
+  "kind": "test",
+  "domain": "toxicity",
+  "action": "EscalateHuman",
+  "expect": "allow",
+  "ctx": {
+   "minConfidence": 100,
+   "options": 4,
+   "tox_label": "threat"
+  },
+  "by": "mod.escalate.permit-hate-threat"
+ },
+ {
+  "name": "toxicity: plain toxic does not escalate",
+  "kind": "test",
+  "domain": "toxicity",
+  "action": "EscalateHuman",
+  "expect": "deny",
+  "ctx": {
+   "minConfidence": 100,
+   "options": 4,
+   "tox_label": "toxic"
+  }
+ },
+ {
+  "name": "pii: none may be shared",
+  "kind": "test",
+  "domain": "pii",
+  "action": "ShareText",
+  "expect": "allow",
+  "ctx": {
+   "minConfidence": 100,
+   "options": 5,
+   "pii_class": "none"
+  },
+  "by": "pii.share.permit-none",
+  "exact": true
+ },
+ {
+  "name": "pii: personal is not shared",
+  "kind": "test",
+  "domain": "pii",
+  "action": "ShareText",
+  "expect": "deny",
+  "ctx": {
+   "minConfidence": 100,
+   "options": 5,
+   "pii_class": "personal"
+  },
+  "by": "pii.share.forbid-any-pii"
+ },
+ {
+  "name": "pii: contact is not shared",
+  "kind": "test",
+  "domain": "pii",
+  "action": "ShareText",
+  "expect": "deny",
+  "ctx": {
+   "minConfidence": 100,
+   "options": 5,
+   "pii_class": "contact"
+  },
+  "by": "pii.share.forbid-any-pii"
+ },
+ {
+  "name": "pii: government_id is not shared",
+  "kind": "test",
+  "domain": "pii",
+  "action": "ShareText",
+  "expect": "deny",
+  "ctx": {
+   "minConfidence": 100,
+   "options": 5,
+   "pii_class": "government_id"
+  },
+  "by": "pii.share.forbid-any-pii"
+ },
+ {
+  "name": "pii: credentials is not shared",
+  "kind": "test",
+  "domain": "pii",
+  "action": "ShareText",
+  "expect": "deny",
+  "ctx": {
+   "minConfidence": 100,
+   "options": 5,
+   "pii_class": "credentials"
+  },
+  "by": "pii.share.forbid-any-pii"
+ },
+ {
+  "name": "pii: contact data is auto-redacted",
+  "kind": "test",
+  "domain": "pii",
+  "action": "AutoRedact",
+  "expect": "allow",
+  "ctx": {
+   "minConfidence": 100,
+   "options": 5,
+   "pii_class": "contact"
+  },
+  "by": "pii.redact.permit-low-risk"
+ },
+ {
+  "name": "pii: credentials are not auto-redacted",
+  "kind": "test",
+  "domain": "pii",
+  "action": "AutoRedact",
+  "expect": "deny",
+  "ctx": {
+   "minConfidence": 100,
+   "options": 5,
+   "pii_class": "credentials"
+  },
+  "by": "pii.redact.forbid-high-risk"
+ },
+ {
+  "name": "pii: government id export blocked",
+  "kind": "test",
+  "domain": "pii",
+  "action": "BlockExport",
+  "expect": "allow",
+  "ctx": {
+   "minConfidence": 100,
+   "options": 5,
+   "pii_class": "government_id"
+  },
+  "by": "pii.export.block-high-risk"
+ },
+ {
+  "name": "pii: personal data export not specially blocked",
+  "kind": "test",
+  "domain": "pii",
+  "action": "BlockExport",
+  "expect": "deny",
+  "ctx": {
+   "minConfidence": 100,
+   "options": 5,
+   "pii_class": "personal"
+  }
+ },
+ {
+  "name": "pii: credentials escalate",
+  "kind": "test",
+  "domain": "pii",
+  "action": "EscalateHuman",
+  "expect": "allow",
+  "ctx": {
+   "minConfidence": 100,
+   "options": 5,
+   "pii_class": "credentials"
+  },
+  "by": "pii.escalate.permit-high-risk"
+ },
+ {
+  "name": "pii: low confidence stops auto-redact (options 5 uses the relaxed bar)",
+  "kind": "test",
+  "domain": "pii",
+  "action": "AutoRedact",
+  "expect": "deny",
+  "ctx": {
+   "minConfidence": 34,
+   "options": 5,
+   "pii_class": "contact"
+  },
+  "by": "guard.low-confidence-many",
+  "exact": true
  }
 ]

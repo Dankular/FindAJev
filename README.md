@@ -88,7 +88,7 @@ dotnet bin/FindAJev.Bench.dll graph        # Graphviz DOT of the run lifecycle (
 ## Suites, parameters and Cedar checks are declarative
 
 * **Suites** (`suites.json`): Classification + Automation (fast-decisions), **Retrieval** (MS MARCO v1.1: pick the gold passage among 4–10 candidates),
-  **Tools** (xLAM: pick the tool the gold call uses among 3–8). Select with `--suites core,retrieval,tools` / the API's `suites` / the Run tab;
+  **Tools** (xLAM: pick the tool the gold call uses among 3–8), **Guardrails** (prompt injection, harmful requests, jailbreaks) and **Moderation** (toxicity, PII risk class) — sources, label designs and licences in `policies/TESTING.md` §5 (the PII source is research-use-only). Select with `--suites core,retrieval,tools` / the API's `suites` / the Run tab;
   add one by adding an entry (loader `jsonl` brings your own rows). Retrieval and Tools are stratified (PII-bearing passages, write/destructive tools)
   so their policies are exercised; see `tools/encode.py`.
 * **Policy parameters** (`policies/params.json`, e.g. the confidence bars): override per run (`--param min_conf_few=70`); a run with a non-default

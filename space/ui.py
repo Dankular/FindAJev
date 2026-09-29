@@ -125,7 +125,7 @@ def dataset_html(v, registry):
             f'<div style="display:flex;justify-content:space-between;align-items:center"><b>{escape(e["title"])}</b>'
             f'<span style="padding:1px 8px;border-radius:99px;font-size:12px;{badge}">{state}</span></div>'
             f'<div style="color:{MUT};font-size:12px;margin:3px 0">{escape(e.get("what", ""))}</div>'
-            f'<div style="font-size:12px"><a href="https://huggingface.co/datasets/{e.get("repo", "")}" target="_blank">{escape(e.get("repo", ""))}</a> · '
+            f'<div style="font-size:12px">{" · ".join(f"<a href=https://huggingface.co/datasets/{r.strip()} target=_blank>{escape(r.strip())}</a>" for r in e.get("repo", "").split(",") if r.strip())} · '
             f'suites: <b>{", ".join(e["provides"])}</b> · {escape(e.get("license", ""))}</div>'
             f'<div style="height:6px;background:{MUT}33;border-radius:99px;overflow:hidden;margin:6px 0 2px"><div style="height:100%;width:{100 * dn / n:.0f}%;background:{"#4f8cff" if is_active else "#34d399"}"></div></div>'
             f'<div style="font-size:12px;color:{MUT}">{dn}/{n} tests</div></div>')

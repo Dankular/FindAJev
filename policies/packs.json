@@ -145,6 +145,65 @@
       "optionAttrs": [
         "tool_risk"
       ]
+    },
+    "injection": {
+      "suite": "guardrails",
+      "actions": [
+        "ForwardToLLM",
+        "BlockAndLog"
+      ],
+      "heads": {},
+      "optionAttrs": [
+        "injection_label"
+      ]
+    },
+    "jailbreak": {
+      "suite": "guardrails",
+      "actions": [
+        "ForwardToLLM",
+        "BlockAndLog"
+      ],
+      "heads": {},
+      "optionAttrs": [
+        "jailbreak_label"
+      ]
+    },
+    "harmful_request": {
+      "suite": "guardrails",
+      "actions": [
+        "ForwardToLLM",
+        "BlockAndLog",
+        "EscalateHuman"
+      ],
+      "heads": {},
+      "optionAttrs": [
+        "harm_label"
+      ]
+    },
+    "toxicity": {
+      "suite": "moderation",
+      "actions": [
+        "Publish",
+        "HideComment",
+        "EscalateHuman"
+      ],
+      "heads": {},
+      "optionAttrs": [
+        "tox_label"
+      ]
+    },
+    "pii": {
+      "suite": "moderation",
+      "actions": [
+        "ShareText",
+        "AutoRedact",
+        "BlockExport",
+        "EscalateHuman"
+      ],
+      "heads": {},
+      "optionAttrs": [
+        "pii_class"
+      ]
     }
   }
 }

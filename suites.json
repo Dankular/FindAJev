@@ -51,6 +51,42 @@
       "repo": "Salesforce/xlam-function-calling-60k",
       "license": "cc-by-4.0",
       "what": "user request + 3\u20138 candidate tools, pick the tool the gold call uses; stratified to include write/destructive tools"
+    },
+    {
+      "id": "guardrails",
+      "title": "Guardrails",
+      "dataset": "guardrails-3",
+      "loader": "guardrails",
+      "file": "{family}.guardrails.jsonl",
+      "provides": [
+        "guardrails"
+      ],
+      "repo": "deepset/prompt-injections, JailbreakBench/JBB-Behaviors, TrustAIRLab/in-the-wild-jailbreak-prompts",
+      "license": "apache-2.0 / mit / mit",
+      "what": "prompt injection, harmful requests (matched benign pairs) and in-the-wild jailbreaks; each domain from one source that has both classes; options shuffled per item",
+      "params": {
+        "n_injection": 300,
+        "n_jailbreak": 300,
+        "seed": 20260931
+      }
+    },
+    {
+      "id": "moderation",
+      "title": "Moderation",
+      "dataset": "moderation-2",
+      "loader": "moderation",
+      "file": "{family}.moderation.jsonl",
+      "provides": [
+        "moderation"
+      ],
+      "repo": "tasksource/jigsaw_toxicity, ai4privacy/pii-masking-300k",
+      "license": "apache-2.0 (per card) / other \u2014 academic use with citation, research benchmarking only",
+      "what": "toxicity (clean / toxic / hate / threat) and PII risk class (none / personal / contact / government_id / credentials, riskiest entity wins)",
+      "params": {
+        "n_toxicity": 300,
+        "n_pii": 300,
+        "seed": 20260932
+      }
     }
   ]
 }

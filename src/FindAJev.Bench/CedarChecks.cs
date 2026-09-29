@@ -110,6 +110,8 @@ public static class CedarChecks
                 var vals = items.Where(i => i.Domain == domain && i.OptAttrs is not null && i.OptAttrs.ContainsKey(attr)).SelectMany(i => i.OptAttrs![attr]).Distinct().OrderBy(x => x).ToArray();
                 if (vals.Length > 0) list.Add((attr, vals));
             }
+            foreach (var g in items.Where(i => i.Domain == domain && i.Ctx is not null).SelectMany(i => i.Ctx!).GroupBy(kv => kv.Key))
+                list.Add((g.Key, g.Select(kv => kv.Value).Distinct().OrderBy(x => x).ToArray()));
             res[domain] = list;
         }
         return res;
@@ -193,12 +195,13 @@ public static class CedarChecks
                 // findings at full confidence
                 var full = Ctx(domain, 100, 2, st);
                 var dec = pack.Actions.ToDictionary(a => a, a => pe.AuthorizeTest(domain, "prop", a, full));
-                var humanAllowed = pack.Actions.Any(a => !auto.Contains(a) && dec[a].Allow);
                 var forbidDenied = pack.Actions.Where(a => auto.Contains(a) && !dec[a].Allow && dec[a].Reasons.Length > 0).ToList();
                 if (forbidDenied.Count > 0)
                 {
                     var (t, ex) = findings["no-human-path-after-safety-forbid"]; t++;
-                    if (!humanAllowed) { ex.Add($"{desc}: {string.Join("/", forbidDenied)} forbidden and no human/side action allowed"); }
+                    // every forbidden autonomous action must leave the request some way forward: another allowed action, automatic or human
+                    var stranded = forbidDenied.Where(fa => !pack.Actions.Any(b => b != fa && dec[b].Allow)).ToList();
+                    if (stranded.Count > 0) ex.Add($"{desc}: {string.Join("/", stranded)} forbidden and no other action allowed");
                     findings["no-human-path-after-safety-forbid"] = (t, ex);
                 }
                 if (pack.Actions.Any(a => auto.Contains(a) && dec[a].Allow) && dec.TryGetValue("EscalateHuman", out var esc) && esc.Allow)
