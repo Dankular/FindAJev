@@ -94,6 +94,7 @@ public sealed class RunMachine
 
     void CreateSession()
     {
+        Progress("loading", 0, _items.Count, 0);
         var sw = Stopwatch.StartNew();
         var o = new SessionOptions
         {
@@ -105,6 +106,7 @@ public sealed class RunMachine
         _session = new InferenceSession(OnnxPath, o); // CPUExecutionProvider is the default; no other EP is appended
         _inputs = _items.Select(BuildInputs).ToList();
         _r.LoadSeconds = sw.Elapsed.TotalSeconds;
+        Progress("loaded", 0, _items.Count, 0);
     }
 
     // Input names verified against the ONNX graphs with onnxruntime (Python): see README.
@@ -138,6 +140,7 @@ public sealed class RunMachine
 
     void WarmUp()
     {
+        Progress("warmup", 0, _warmup, 0);
         for (var k = 0; k < _warmup; k++) Infer(k % _items.Count);
     }
 
@@ -145,6 +148,8 @@ public sealed class RunMachine
     {
         // Per-decision latency at batch size 1, sequential, wall clock around session.Run only.
         // Repeat 1 records logits for scoring; every repeat contributes to the latency distribution.
+        var total = _repeats * _items.Count;
+        Progress("measure", 0, total, 0);
         for (var rep = 0; rep < _repeats; rep++)
             for (var i = 0; i < _items.Count; i++)
             {
@@ -152,8 +157,13 @@ public sealed class RunMachine
                 var lg = Infer(i);
                 _ms.Add(Stopwatch.GetElapsedTime(sw).TotalMilliseconds);
                 if (rep == 0) _logits.Add(lg);
+                if (_ms.Count % 25 == 0 || _ms.Count == total) Progress("measure", _ms.Count, total, _ms.Average());
             }
     }
+
+    /// <summary>Machine-readable progress line on stderr, consumed by space/server.py (which turns it into SSE events).</summary>
+    void Progress(string phase, int done, int total, double meanMs) =>
+        Console.Error.WriteLine("PROGRESS " + JsonSerializer.Serialize(new { model = _spec.Id, phase, done, total, meanMs = Math.Round(meanMs, 2) }));
 
     void Score()
     {
