@@ -1,0 +1,7 @@
+models/
+data/encoded/
+results/
+bin/
+obj/
+__pycache__/
+*.pyc

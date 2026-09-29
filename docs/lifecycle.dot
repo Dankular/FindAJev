@@ -1,0 +1,26 @@
+digraph {
+compound=true;
+node [shape=Mrecord]
+rankdir="LR"
+
+subgraph "clusterRunning"
+	{
+	label = "Running"
+"Pending" [label="Pending"];
+"ModelReady" [label="ModelReady"];
+"SessionLoaded" [label="SessionLoaded|entry / CreateSession"];
+"WarmedUp" [label="WarmedUp|entry / WarmUp"];
+"Measured" [label="Measured|entry / Measure"];
+}
+"Scored" [label="Scored|entry / Score"];
+"Failed" [label="Failed|entry / Function"];
+
+"Running" -> "Failed" [style="solid", label="Fail"];
+"Pending" -> "ModelReady" [style="solid", label="Verify [model file present]"];
+"ModelReady" -> "SessionLoaded" [style="solid", label="Load"];
+"SessionLoaded" -> "WarmedUp" [style="solid", label="Warm"];
+"WarmedUp" -> "Measured" [style="solid", label="Measure"];
+"Measured" -> "Scored" [style="solid", label="Score"];
+ init [label="", shape=point];
+ init -> "Pending"[style = "solid"]
+}

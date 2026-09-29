@@ -1,0 +1,62 @@
+[
+  {
+    "id": "gliner25-decide-int8",
+    "family": "gliner",
+    "repo": "nishparadox/gliner2.5-decide-onnx",
+    "files": [
+      "model_int8.onnx",
+      "tokenizer.json"
+    ],
+    "onnx": "models/gliner2.5-decide-onnx/model_int8.onnx",
+    "precision": "int8"
+  },
+  {
+    "id": "gliner25-decide-fp32",
+    "family": "gliner",
+    "repo": "nishparadox/gliner2.5-decide-onnx",
+    "files": [
+      "model.onnx",
+      "tokenizer.json"
+    ],
+    "onnx": "models/gliner2.5-decide-onnx/model.onnx",
+    "precision": "fp32"
+  },
+  {
+    "id": "gliner25-decide-fp16",
+    "family": "gliner",
+    "repo": "nishparadox/gliner2.5-decide-onnx",
+    "files": [
+      "model_fp16.onnx",
+      "tokenizer.json"
+    ],
+    "onnx": "models/gliner2.5-decide-onnx/model_fp16.onnx",
+    "precision": "fp16"
+  },
+  {
+    "id": "julia-1-fp32",
+    "family": "julia",
+    "repo": "SupersonicLabs/Julia-1-ONNX",
+    "files": [
+      "model.onnx",
+      "model.onnx.data",
+      "tokenizer.json",
+      "tokenizer_config.json"
+    ],
+    "onnx": "models/Julia-1-ONNX/model.onnx",
+    "precision": "fp32"
+  },
+  {
+    "id": "laya-fp32",
+    "family": "laya",
+    "repo": "receptron/laya-onnx",
+    "files": [
+      "laya.onnx",
+      "laya.onnx.data",
+      "laya_config.json",
+      "tokenizer/tokenizer.json",
+      "tokenizer/tokenizer_config.json"
+    ],
+    "onnx": "models/laya-onnx/laya.onnx",
+    "precision": "fp32"
+  }
+]
