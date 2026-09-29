@@ -20,7 +20,61 @@ from pydantic import BaseModel, Field
 ROOT = Path(os.environ.get("FINDAJEV_ROOT", Path(__file__).parent)).resolve()
 DLL = ROOT / "bin" / "FindAJev.Bench.dll"
 REGISTRY = {m["id"]: m for m in json.loads((ROOT / "models.json").read_text())}
-DATASET_SIZE = 2600  # single-label decisions in fastino/fast-decisions (see tools/encode.py)
+DATASET_SIZE = 2600  # fallback estimate only (fast-decisions single-label decisions); real counts come from the encoded files
+
+
+def load_json(rel):
+    return json.loads((ROOT / rel).read_text())
+
+
+def suite_registry():
+    """The declarative suites (suites.json): what can be run, dynamically."""
+    return load_json("suites.json")["suites"]
+
+
+def policy_params():
+    """Default Cedar policy parameters (policies/params.json)."""
+    return {k: v for k, v in load_json("policies/params.json").items() if not k.startswith("_")}
+
+
+def count_items(family, suites=None, limit=0):
+    """Number of model calls a run of `family` will make: lines in the encoded files of the selected suites (limit applies per file)."""
+    total = 0
+    for s in suite_registry():
+        if suites and s["id"] not in suites:
+            continue
+        f = ROOT / "data/encoded" / s["file"].format(family=family)
+        if f.exists():
+            with f.open() as fh:
+                n = sum(1 for _ in fh)
+            total += min(n, limit) if limit else n
+    return total or None
+
+
+def variant_of(suites, params):
+    """Same string the harness computes: non-default selections that make a result comparable only to like runs ("" = default)."""
+    parts = []
+    if suites:
+        parts.append("suites=" + ",".join(sorted(suites)))
+    parts += [f"{k}={v}" for k, v in sorted((params or {}).items())]
+    return ";".join(parts)
+
+
+def result_suffix(variant):
+    import hashlib
+    return "" if not variant else "." + hashlib.sha1(variant.encode()).hexdigest()[:8]
+
+
+def normalize(suites, params):
+    """Drop selections equal to the defaults so a 'select everything' run stays comparable with a plain run."""
+    all_ids = {x["id"] for x in suite_registry()}
+    suites = None if not suites or set(suites) >= all_ids else sorted(set(suites))
+    defaults = policy_params()
+    params = {k: int(v) for k, v in (params or {}).items() if k not in defaults or int(v) != defaults[k]}
+    return suites, params
+
+
+CHECKS = {"updated": None, "cedar": None, "results": {}}   # latest Cedar check outcomes, shown on the dashboard
 
 # Leaf states of the per-test machine, in the order used for the compact per-test state codes sent to the dashboard.
 TEST_STATES = ["Queued", "Inferring", "Enforcing", "Correct", "WrongButSafe", "Overblocked", "Unsafe", "Misclassified", "Errored"]
@@ -179,6 +233,8 @@ class RunRequest(BaseModel):
     threads: int = Field(default_factory=lambda: CPUS, ge=1, le=256)
     limit: int = Field(0, ge=0, description=f"0 = all {DATASET_SIZE} decisions")
     warmup: int = Field(20, ge=0)
+    suites: Optional[list[str]] = Field(None, description="suite ids from GET /suites (default: all)")
+    params: dict[str, int] = Field(default_factory=dict, description="Cedar policy parameter overrides from GET /params")
 
 
 # ---------------------------------------------------------------------------------------------- running jobs
@@ -195,10 +251,34 @@ def sh(cmd, log, on_line=None):
     return p.wait()
 
 
+def run_checks(ids, log=None):
+    """Run Cedar checks through the harness (`cedar-suite --json`); updates CHECKS. Returns the outcome dicts."""
+    p = subprocess.run(["dotnet", str(DLL), "cedar-suite", "--checks", ",".join(ids), "--json"], cwd=ROOT, capture_output=True, text=True)
+    try:
+        out = json.loads(p.stdout)             # the harness prints one (indented) JSON document
+    except ValueError:
+        raise RuntimeError("cedar-suite produced no result: " + (p.stderr or p.stdout)[-300:])
+    CHECKS["updated"], CHECKS["cedar"] = time.time(), f'{out["cedar"]} (language {out["language"]})'
+    for c in out["checks"]:
+        CHECKS["results"][c["id"]] = c
+    return out["checks"]
+
+
+GATE = ["policy-validate", "golden-cases", "conformance"]   # fast hard checks that must pass before any model time is spent
+
+
 def run_one(req: RunRequest, job):
     """Cedar pre-flight, fetch, encode and benchmark one model. Returns the result dict, or raises. Does not touch the lock."""
     m, log = REGISTRY[req.model], job["log"]
     LIVE.reset(req.model)
+    suites, params = normalize(req.suites, req.params)
+
+    if not job.get("gated"):
+        job["stage"] = "cedar gate"
+        bad = [c for c in run_checks(GATE, log) if not c["passed"]]
+        if bad:
+            raise RuntimeError("Cedar gate failed: " + "; ".join(f'{c["id"]}: {c["summary"]}' for c in bad))
+        job["gated"] = True
 
     job["stage"] = f"{req.model}: policy check"
     chk = subprocess.run(["dotnet", str(DLL), "check", req.model, "--threads", str(req.threads), "--cpus", str(CPUS)],
@@ -216,15 +296,18 @@ def run_one(req: RunRequest, job):
     job["stage"] = f"{req.model}: fetch"
     if sh(["python3", "tools/fetch.py", req.model], log):
         raise RuntimeError("fetch failed")
-    if not (ROOT / "data/encoded" / f"{m['family']}.jsonl").exists():
-        job["stage"] = f"{req.model}: encode"
-        if sh(["python3", "tools/encode.py", m["family"]], log):
-            raise RuntimeError("encode failed")
+    job["stage"] = f"{req.model}: encode"       # idempotent: encodes only the suite files that are missing
+    if sh(["python3", "tools/encode.py", m["family"]], log):
+        raise RuntimeError("encode failed")
     job["stage"] = f"{req.model}: run"
+    result_file = []
 
     def on_line(line):
         if line.startswith("PROGRESS "):
             job["progress"] = dict(json.loads(line[9:]), updated=time.time())
+            return True
+        if line.startswith("RESULT_FILE "):
+            result_file.append(line[12:].strip())
             return True
         if line.startswith("EVENT "):
             try:
@@ -233,9 +316,14 @@ def run_one(req: RunRequest, job):
                 log.append(f"bad event: {e}")
             return True
 
-    sh(["dotnet", str(DLL), "run", req.model, "--threads", str(req.threads), "--cpus", str(CPUS), "--limit", str(req.limit),
-        "--warmup", str(req.warmup)], log, on_line)
-    f = ROOT / "results" / f"{req.model}.t{req.threads}.json"
+    cmd = ["dotnet", str(DLL), "run", req.model, "--threads", str(req.threads), "--cpus", str(CPUS), "--limit", str(req.limit),
+           "--warmup", str(req.warmup)]
+    if suites:
+        cmd += ["--suites", ",".join(suites)]
+    for k, v in sorted(params.items()):
+        cmd += ["--param", f"{k}={v}"]
+    sh(cmd, log, on_line)
+    f = ROOT / result_file[-1] if result_file else ROOT / "results" / f"{req.model}.t{req.threads}.json"
     if not f.exists():
         raise RuntimeError("no result file produced")
     persist(f)
@@ -295,11 +383,11 @@ def snapshot(job):
             eta["current_s"] = round((pr["total"] - pr["done"]) * pr["meanMs"] / 1000, 1)
             out["percent"] = round(100 * pr["done"] / pr["total"], 1)
         threads = job["request"].get("threads")
-        n = job["request"].get("limit") or DATASET_SIZE
+        lim = job["request"].get("limit") or 0
         cur = job.get("current")
         queued = job["queue"][job["queue"].index(cur) + 1:] if cur in job["queue"] else []
         for m in queued:
-            est = prior_seconds(m, threads, n) if threads else None
+            est = prior_seconds(m, threads, count_items(REGISTRY[m]["family"], job["request"].get("suites"), lim) or DATASET_SIZE) if threads else None
             if est is None:
                 eta["queued_unknown"].append(m)
             else:
@@ -378,24 +466,111 @@ def models():
 def run(req: RunRequest):
     if req.model not in REGISTRY:
         raise HTTPException(404, f"unknown model {req.model}")
-    return start_job(req.model_dump(), [req])
+    return start_runs([req.model], req.threads, req.limit, req.warmup, False, req.suites, req.params)
 
 
 @app.post("/run-all", status_code=202, dependencies=[Depends(auth)])
-def run_all(threads: int = CPUS, limit: int = 0, warmup: int = 20, skip_done: bool = False):
+def run_all(threads: int = CPUS, limit: int = 0, warmup: int = 20, skip_done: bool = False, suites: str = "", params: str = ""):
     """Benchmark every registry model sequentially; follow the returned job via /live or its SSE stream.
-    skip_done=true skips models that already have a Scored result for the same threads and decision count."""
+    suites: comma-separated suite ids (GET /suites); params: comma-separated name=value Cedar overrides (GET /params);
+    skip_done=true skips models that already have a Scored result for the same threads, suites, parameters and decision count."""
+    sel = [x for x in suites.split(",") if x] or None
+    ov = dict(kv.split("=", 1) for kv in params.split(",") if kv)
+    return start_runs(list(REGISTRY), threads, limit, warmup, skip_done, sel, {k: int(v) for k, v in ov.items()})
+
+
+def start_runs(models, threads, limit, warmup, skip_done, suites, params):
+    check_selection(suites, params)
+    nsuites, nparams = normalize(suites, params)
+    suffix = result_suffix(variant_of(nsuites, nparams))
+
     def done(m):
-        f = ROOT / "results" / f"{m}.t{threads}.json"
+        f = ROOT / "results" / f"{m}.t{threads}{suffix}.json"
         if not f.exists():
             return False
         r = json.loads(f.read_text())
-        return r.get("state") == "Scored" and r.get("items") == (limit or DATASET_SIZE)
-    todo = [m for m in REGISTRY if not (skip_done and done(m))]
+        want = count_items(REGISTRY[m]["family"], nsuites, limit)
+        return r.get("state") == "Scored" and want is not None and r.get("items") == want
+    todo = [m for m in models if not (skip_done and done(m))]
     if not todo:
-        raise HTTPException(200, "nothing to do: every model already has a result")
-    return start_job(dict(all=True, threads=threads, limit=limit, skip_done=skip_done),
-                     [RunRequest(model=m, threads=threads, limit=limit, warmup=warmup) for m in todo])
+        raise HTTPException(200, "nothing to do: every selected model already has a result for this selection")
+    return start_job(dict(all=len(models) > 1, threads=threads, limit=limit, skip_done=skip_done, suites=nsuites, params=nparams),
+                     [RunRequest(model=m, threads=threads, limit=limit, warmup=warmup, suites=suites, params=params) for m in todo])
+
+
+def check_selection(suites, params):
+    """Reject unknown suites / parameters up front with the list of valid ones (the harness would reject them too, but only after a download)."""
+    known = {x["id"] for x in suite_registry()}
+    bad = [x for x in (suites or []) if x not in known]
+    if bad:
+        raise HTTPException(422, f"unknown suite(s) {bad}; available: {sorted(known)}")
+    defaults = policy_params()
+    badp = [k for k in (params or {}) if k not in defaults]
+    if badp:
+        raise HTTPException(422, f"unknown policy parameter(s) {badp}; available: {sorted(defaults)}")
+
+
+@app.get("/suites")
+def suites_endpoint():
+    """The declarative suite registry, with which encoded files exist per model family."""
+    out = []
+    for s in suite_registry():
+        enc = {fam: (ROOT / "data/encoded" / s["file"].format(family=fam)).exists() for fam in ("gliner", "julia", "laya")}
+        out.append(dict(s, encoded=enc))
+    return out
+
+
+@app.get("/params")
+def params_endpoint():
+    """Cedar policy parameters and their defaults; override per run with `params`."""
+    return policy_params()
+
+
+@app.get("/checks")
+def checks_endpoint():
+    """Available Cedar checks (from the harness, so new checks appear automatically) and the latest outcome of each."""
+    p = subprocess.run(["dotnet", str(DLL), "cedar-suite", "--list"], cwd=ROOT, capture_output=True, text=True)
+    try:
+        listing = json.loads(p.stdout)
+    except ValueError:
+        raise HTTPException(503, "harness unavailable: " + p.stderr[-200:])
+    return {"cedar": CHECKS["cedar"], "updated": CHECKS["updated"], "checks": [dict(c, last=CHECKS["results"].get(c["id"])) for c in listing]}
+
+
+class CheckRequest(BaseModel):
+    checks: Optional[list[str]] = Field(None, description="check ids from GET /checks (default: all)")
+
+
+@app.post("/checks", status_code=202, dependencies=[Depends(auth)])
+def run_checks_endpoint(req: CheckRequest):
+    """Run Cedar checks as a job (they share the single job lock: they use CPU, so never run beside a benchmark)."""
+    if not _lock.acquire(blocking=False):
+        raise HTTPException(409, "a job is already running; poll /jobs")
+    known = [c["id"] for c in checks_endpoint()["checks"]]
+    ids = req.checks or known
+    bad = [i for i in ids if i not in known]
+    if bad:
+        _lock.release()
+        raise HTTPException(422, f"unknown check(s) {bad}; available: {known}")
+    jid = uuid.uuid4().hex[:12]
+    _jobs[jid] = job = dict(id=jid, request=dict(checks=ids), status="running", stage="cedar checks", started=time.time(), log=[],
+                            result=[], errors={}, progress=None, queue=ids, current=None)
+
+    def go():
+        try:
+            job["result"] = run_checks(ids)
+            failed = [c["id"] for c in job["result"] if not c["passed"] and c["hard"]]
+            job["status"] = "failed" if failed else "done"
+            if failed:
+                job["errors"] = {"hard checks failed": ", ".join(failed)}
+        except Exception as e:
+            job["status"], job["errors"] = "failed", {"cedar-suite": str(e)}
+        finally:
+            job["stage"], job["finished"] = None, time.time()
+            _lock.release()
+
+    threading.Thread(target=go, daemon=True).start()
+    return {"job": jid, "poll": f"/jobs/{jid}"}
 
 
 @app.get("/jobs")

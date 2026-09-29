@@ -30,9 +30,15 @@ public static class Rows
         var pack = pe.Packs[row.Domain];
         var attrs = new List<KeyValuePair<string, string>>();
         foreach (var h in row.Heads)
+        {
             if (pack.Heads.TryGetValue(h.Task, out var attr) && h.Labels is not null)
                 attrs.Add(new(attr, h.Labels[label(h)]));
-        return PolicyEngine.Ctx(row.Domain, minConfidence, attrs);
+            // per-option metadata (retrieval: passage_pii/passage_source, tools: tool_risk): the chosen option's value
+            foreach (var a in pack.OptionAttrs ?? Array.Empty<string>())
+                if (h.OptAttrs is not null && h.OptAttrs.TryGetValue(a, out var vals))
+                    attrs.Add(new(a, vals[label(h)]));
+        }
+        return PolicyEngine.Ctx(row.Domain, minConfidence, row.Heads.Max(h => h.N), attrs);
     }
 }
 
@@ -48,9 +54,17 @@ public static class PolicyCommands
         var failed = problems.Count(p => !p.Contains("warning:"));
         Console.WriteLine(failed == 0 ? "schema validation: OK (strict)" : $"schema validation: {failed} error(s)");
 
-        var registry = JsonSerializer.Deserialize<List<ModelSpec>>(File.ReadAllText(Path.Combine(root, "models.json")))!;
+        var (pass, total, fails) = RunGolden(pe, root);
+        foreach (var f in fails) Console.WriteLine("  FAIL " + f);
+        Console.WriteLine($"golden cases: {pass}/{total} passed");
+        return failed == 0 && pass == total ? 0 : 1;
+    }
+
+    /// <summary>Run policies/cases.json (golden decisions for our own policies) against an engine. Returns (passed, total, failure descriptions).</summary>
+    public static (int pass, int total, List<string> failures) RunGolden(PolicyEngine pe, string root)
+    {
         var cases = JsonNode.Parse(File.ReadAllText(Path.Combine(root, "policies/cases.json")))!.AsArray();
-        int pass = 0;
+        int pass = 0; var fails = new List<string>();
         foreach (var c in cases)
         {
             var name = c!["name"]!.GetValue<string>();
@@ -70,12 +84,11 @@ public static class PolicyCommands
             }
             var want = c["expect"]!.GetValue<string>() == "allow";
             var by = c["by"]?.GetValue<string>();
-            var ok = d.Error is null && d.Allow == want && (by is null || d.Reasons.Contains(by));
-            if (ok) pass++;
-            else Console.WriteLine($"  FAIL {name}: got {(d.Allow ? "allow" : "deny")} by [{string.Join(", ", d.Reasons)}] err={d.Error}; want {(want ? "allow" : "deny")}{(by is null ? "" : " by " + by)}");
+            var exact = c["exact"]?.GetValue<bool>() == true;     // "exact": the reason set must be exactly {by}, not merely contain it
+            if (d.Error is null && d.Allow == want && (by is null || (exact ? d.Reasons.Length == 1 && d.Reasons[0] == by : d.Reasons.Contains(by)))) pass++;
+            else fails.Add($"{name}: got {(d.Allow ? "allow" : "deny")} by [{string.Join(", ", d.Reasons)}] err={d.Error}; want {(want ? "allow" : "deny")}{(by is null ? "" : " by " + by)}");
         }
-        Console.WriteLine($"golden cases: {pass}/{cases.Count} passed");
-        return failed == 0 && pass == cases.Count ? 0 : 1;
+        return (pass, cases.Count, fails);
     }
 
     /// <summary>
@@ -85,7 +98,7 @@ public static class PolicyCommands
     public static int Coverage(string root, string family)
     {
         var pe = new PolicyEngine(Path.Combine(root, "policies"));
-        var items = File.ReadLines(Path.Combine(root, "data/encoded", family + ".jsonl")).Select(l => JsonSerializer.Deserialize<Item>(l)!).ToList();
+        var items = Data.Load(root, family, null, 0);
         var rows = Rows.Group(items);
         var stats = new SortedDictionary<string, (int allow, int deny, int err)>();
         var hits = pe.TestPolicies.Keys.ToDictionary(k => k, _ => 0);

@@ -38,6 +38,123 @@ def load_items(limit_per_domain=None):
                                labels=labels, gold=labels.index(t["true_label"][0]))
 
 
+
+# ----------------------------------------------------------------------------------------------- Retrieval + Tools suites
+import random, re
+
+SUITE_N = 400            # tests per suite; sampled deterministically (see below)
+SEED = 20260929
+PII_RX = re.compile(r"[\w.+-]+@[\w-]+\.[\w.-]+|\(?\b\d{3}\)?[-. ]\d{3}[-. ]\d{4}\b|\b\d{3}-\d{2}-\d{4}\b|\b(?:\d[ -]?){13,16}\b")
+TRUST_RX = re.compile(r"\.(gov|edu)(/|$)|wikipedia\.org|mayoclinic\.org|webmd\.com")
+DESTRUCTIVE = {"delete", "remove", "cancel", "drop", "terminate", "revoke", "erase", "destroy", "wipe", "purge", "unsubscribe", "deactivate"}
+WRITE = {"create", "update", "send", "post", "set", "add", "write", "book", "transfer", "pay", "order", "place", "submit", "change",
+         "modify", "upload", "register", "publish", "reserve", "schedule", "subscribe", "edit", "insert", "make"}
+
+
+def clean(s, n=None):
+    """One line, no parentheses (reserved by gliner2's prompt format), optionally truncated."""
+    s = re.sub(r"\s+", " ", s.replace("(", "[").replace(")", "]")).strip()
+    return s[:n] if n else s
+
+
+def tool_risk(tool):
+    """Heuristic on the tool NAME's leading verb (or the description's first word): destructive / write / read. Names only, because
+    matching verbs anywhere in descriptions gave false positives (e.g. 'is_subset' -> 'set')."""
+    first = re.split(r"[_\-\s]+", tool["name"].strip().lower())[0]
+    dfirst = re.sub(r"(es|s)$", "", (tool.get("description") or "").strip().lower().split(" ")[0]) if tool.get("description") else ""
+    for w in (first, dfirst):
+        if w in DESTRUCTIVE: return "destructive"
+    for w in (first, dfirst):
+        if w in WRITE: return "write"
+    return "read"
+
+
+def load_retrieval(n=400, seed=20260929, pii_fraction=1 / 3):
+    """MS MARCO v1.1 validation: query + 4-10 candidate passages, exactly one selected. Stratified: every query that has a PII-bearing
+    candidate (regex) is included first (they are only ~2% of queries), then a seeded random fill up to SUITE_N."""
+    import pyarrow.parquet as pq
+    from huggingface_hub import hf_hub_download
+    t = pq.read_table(hf_hub_download("microsoft/ms_marco", "v1.1/validation-00000-of-00001.parquet", repo_type="dataset"))
+    rows = [r for r in t.select(["query_id", "query", "passages"]).to_pylist()
+            if sum(r["passages"]["is_selected"]) == 1 and 4 <= len(r["passages"]["passage_text"]) <= 10]
+    rng = random.Random(seed)
+    pii = [r for r in rows if any(PII_RX.search(p) for p in r["passages"]["passage_text"])]
+    rng.shuffle(pii)
+    chosen = pii[: int(n * pii_fraction)]
+    ids = {r["query_id"] for r in chosen}
+    rest = [r for r in rows if r["query_id"] not in ids]
+    rng.shuffle(rest)
+    chosen += rest[: n - len(chosen)]
+    chosen.sort(key=lambda r: r["query_id"])
+    for r in chosen:
+        ps = r["passages"]
+        texts = [clean(x) for x in ps["passage_text"]]
+        yield dict(id=f"retrieval:{r['query_id']}:0", domain="retrieval", task="retrieval", suite="retrieval", text=clean(r["query"]),
+                   question="Which passage answers the query?", labels=[f"{i + 1}. {x[:300]}" for i, x in enumerate(texts)], passages=texts,
+                   gold=ps["is_selected"].index(1),
+                   optAttrs={"passage_pii": ["yes" if PII_RX.search(x) else "no" for x in ps["passage_text"]],
+                             "passage_source": ["high" if TRUST_RX.search(u or "") else "other" for u in ps["url"]]})
+
+
+def load_tools(n=400, seed=20260930, risky_fraction=0.4):
+    """xlam function-calling, CC-BY-4.0. Uses the official (gated) Salesforce/xlam-function-calling-60k when the environment has an
+    HF token that has accepted its terms, otherwise the lockon mirror, which was verified byte-identical (same SHA-256, 60000 rows).
+    Rows with 3-8 unique tools whose gold answer calls exactly one of them. Stratified: 40% of tests contain a write/destructive
+    candidate (they are ~22% of rows), the rest random."""
+    from huggingface_hub import hf_hub_download
+    try:
+        path = hf_hub_download("Salesforce/xlam-function-calling-60k", "xlam_function_calling_60k.json", repo_type="dataset")
+        print("tools suite source: Salesforce/xlam-function-calling-60k (official)", file=sys.stderr)
+    except Exception as e:  # gated repo without an accepted token
+        print(f"tools suite source: lockon mirror (official unavailable: {type(e).__name__})", file=sys.stderr)
+        path = hf_hub_download("lockon/xlam-function-calling-60k", "xlam_function_calling_60k.json", repo_type="dataset")
+    data = json.load(open(path))
+    ok = []
+    for r in data:
+        tools, ans = json.loads(r["tools"]), json.loads(r["answers"])
+        names = [t["name"] for t in tools]
+        gold = {a["name"] for a in ans}
+        if 3 <= len(tools) <= 8 and len(set(names)) == len(names) and len(gold) == 1 and next(iter(gold)) in names:
+            ok.append((r, tools, names.index(next(iter(gold)))))
+    rng = random.Random(seed)
+    risky = [x for x in ok if any(tool_risk(t) != "read" for t in x[1])]
+    rng.shuffle(risky)
+    chosen = risky[: int(n * risky_fraction)]
+    ids = {x[0]["id"] for x in chosen}
+    rest = [x for x in ok if x[0]["id"] not in ids]
+    rng.shuffle(rest)
+    chosen += rest[: n - len(chosen)]
+    chosen.sort(key=lambda x: x[0]["id"])
+    for r, tools, gold in chosen:
+        descs = [clean(t.get("description", ""), 160) for t in tools]
+        yield dict(id=f"tools:{r['id']}:0", domain="tools", task="tool", suite="tools", text=clean(r["query"]),
+                   question="Which tool should be called?", labels=[f"{t['name']}: {d}" for t, d in zip(tools, descs)],
+                   glabels=[t["name"] for t in tools], gdescs=descs, gold=gold,
+                   optAttrs={"tool_risk": [tool_risk(t) for t in tools]})
+
+
+def load_jsonl(path, suite="custom", domain="custom", task="custom", question="Which option is correct?"):
+    """Bring-your-own rows: one JSON object per line with `text` (state), `labels` (options), `gold` (index); optional `id`, `question`,
+    `passages` / `glabels` / `gdescs` (see gliner encoder), `optAttrs` ({attr: [value per option]}, feeds Cedar context)."""
+    for i, line in enumerate(open(ROOT / path if not Path(path).is_absolute() else path)):
+        if not line.strip():
+            continue
+        r = json.loads(line)
+        assert 2 <= len(r["labels"]) <= 20 and 0 <= r["gold"] < len(r["labels"]), f"{path}:{i + 1}: need 2-20 labels and a valid gold index"
+        r.setdefault("id", f"{suite}:{i}:0")
+        r.setdefault("domain", domain); r.setdefault("task", task); r.setdefault("suite", suite); r.setdefault("question", question)
+        r.setdefault("optAttrs", {})
+        yield r
+
+
+LOADERS = {   # name used in suites.json -> function(**params) yielding item dicts
+    "fast_decisions": lambda **p: load_items(p.get("limit_per_domain")),
+    "ms_marco": load_retrieval,
+    "xlam": load_tools,
+    "jsonl": load_jsonl,
+}
+
+
 def gliner_encoder():
     p = ROOT / "models/gliner2.5-decide-onnx"
     spec = importlib.util.spec_from_file_location("gliner_onnx", p / "gliner_onnx.py")
@@ -46,7 +163,17 @@ def gliner_encoder():
     g.tok, g._cache = Tokenizer.from_file(str(p / "tokenizer.json")), {}
 
     def enc(item):
-        ids, pos = g.encode(item["text"], [mod.Task(item["task"], dict.fromkeys(item["labels"]))])
+        if "passages" in item:      # retrieval: shrink each passage snippet until the whole prompt fits the 512-token context
+            for lim in (220, 160, 110, 70, 40):
+                labels = [f"{i + 1}. {x[:lim]}" for i, x in enumerate(item["passages"])]
+                ids, pos = g.encode(item["text"], [mod.Task(item["task"], dict.fromkeys(labels))])
+                if len(ids) <= GLINER_MAX: break
+            assert len(ids) <= GLINER_MAX and max(pos) < GLINER_MAX, f"{item['id']}: does not fit even at 40 chars/passage"
+        elif "glabels" in item:     # tools: label = tool name, description carried in the task prompt
+            assert len(set(item["glabels"])) == len(item["glabels"])
+            ids, pos = g.encode(item["text"], [mod.Task(item["task"], dict(zip(item["glabels"], item["gdescs"])))])
+        else:
+            ids, pos = g.encode(item["text"], [mod.Task(item["task"], dict.fromkeys(item["labels"]))])
         return dict(ids=ids[:GLINER_MAX], pos=pos)
     return enc
 
@@ -95,23 +222,44 @@ def laya_encoder():
     return decision_encoder(ROOT / "models/laya-onnx/tokenizer", cfg["max_len"], cfg["head_max_len"])
 
 
+def registry():
+    return json.loads((ROOT / "suites.json").read_text())["suites"]
+
+
 def main():
+    ids = [x["id"] for x in registry()]
     ap = argparse.ArgumentParser()
     ap.add_argument("family", choices=["gliner", "julia", "laya"])
+    ap.add_argument("--suite", default="all", help=f"suite id from suites.json ({', '.join(ids)}) or 'all'")
     ap.add_argument("--limit-per-domain", type=int)
-    ap.add_argument("--question", default="{task}?", help="Julia/Laya question template ({task} = task name, underscores->spaces)")
+    ap.add_argument("--force", action="store_true", help="re-encode even if the output exists")
+    ap.add_argument("--question", default="{task}?", help="Julia/Laya question template for the core suite ({task} = task name, underscores->spaces)")
     a = ap.parse_args()
+    if a.suite != "all" and a.suite not in ids:
+        ap.error(f"unknown suite {a.suite!r}; available: {', '.join(ids)}")
     enc = {"gliner": gliner_encoder, "julia": julia_encoder, "laya": laya_encoder}[a.family]()
-    out = ROOT / "data/encoded" / f"{a.family}.jsonl"
-    out.parent.mkdir(parents=True, exist_ok=True)
-    n = 0
-    with out.open("w") as fh:
-        for it in load_items(a.limit_per_domain):
-            it["question"] = a.question.format(task=it["task"].replace("_", " "))
-            e = enc(it)
-            fh.write(json.dumps(dict(id=it["id"], domain=it["domain"], task=it["task"], labels=it["labels"], n=len(it["labels"]), gold=it["gold"], **e)) + "\n")
-            n += 1
-    print(f"wrote {n} items -> {out}", file=sys.stderr)
+    for entry in registry():
+        if a.suite not in ("all", entry["id"]):
+            continue
+        out = ROOT / "data/encoded" / entry["file"].format(family=a.family)
+        if out.exists() and not a.force:
+            print(f"{out.name}: exists, skipping", file=sys.stderr); continue
+        out.parent.mkdir(parents=True, exist_ok=True)
+        params = dict(entry.get("params", {}))
+        if entry["loader"] == "fast_decisions" and a.limit_per_domain:
+            params["limit_per_domain"] = a.limit_per_domain
+        n = 0
+        with out.open("w") as fh:
+            for it in LOADERS[entry["loader"]](**params):
+                if entry["loader"] == "fast_decisions":
+                    it["question"] = a.question.format(task=it["task"].replace("_", " "))
+                e = enc(it)
+                rec = dict(id=it["id"], domain=it["domain"], task=it["task"], labels=it["labels"], n=len(it["labels"]), gold=it["gold"], **e)
+                if "suite" in it:       # explicit suite name (retrieval / tools / custom); core rows are classified by their policy pack
+                    rec["suite"], rec["optAttrs"] = it["suite"], it.get("optAttrs", {})
+                fh.write(json.dumps(rec) + "\n")
+                n += 1
+        print(f"wrote {n} items -> {out}", file=sys.stderr)
 
 
 if __name__ == "__main__":

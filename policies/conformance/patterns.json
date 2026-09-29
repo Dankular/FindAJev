@@ -1,0 +1,342 @@
+[
+ {
+  "name": "RBAC: admin role may delete",
+  "kind": "authorize",
+  "policies": [
+   "permit(principal in Role::\"admin\", action == Action::\"delete\", resource);"
+  ],
+  "request": {
+   "principal": "User::\"alice\"",
+   "action": "Action::\"delete\"",
+   "resource": "Doc::\"d1\"",
+   "context": {}
+  },
+  "entities": [
+   {
+    "uid": "User::\"alice\"",
+    "parents": [
+     "Role::\"admin\""
+    ]
+   },
+   {
+    "uid": "Role::\"admin\""
+   }
+  ],
+  "expect": {
+   "decision": "allow"
+  }
+ },
+ {
+  "name": "RBAC: viewer may not delete",
+  "kind": "authorize",
+  "policies": [
+   "permit(principal in Role::\"admin\", action == Action::\"delete\", resource);"
+  ],
+  "request": {
+   "principal": "User::\"alice\"",
+   "action": "Action::\"delete\"",
+   "resource": "Doc::\"d1\"",
+   "context": {}
+  },
+  "entities": [
+   {
+    "uid": "User::\"alice\"",
+    "parents": [
+     "Role::\"viewer\""
+    ]
+   },
+   {
+    "uid": "Role::\"viewer\""
+   }
+  ],
+  "expect": {
+   "decision": "deny"
+  }
+ },
+ {
+  "name": "ABAC: clearance >= sensitivity",
+  "kind": "authorize",
+  "policies": [
+   "permit(principal, action, resource) when { principal.clearance >= resource.sensitivity };"
+  ],
+  "request": {
+   "principal": "User::\"alice\"",
+   "action": "Action::\"view\"",
+   "resource": "Doc::\"d1\"",
+   "context": {}
+  },
+  "entities": [
+   {
+    "uid": "User::\"alice\"",
+    "attrs": {
+     "clearance": 3
+    }
+   },
+   {
+    "uid": "Doc::\"d1\"",
+    "attrs": {
+     "sensitivity": 2
+    }
+   }
+  ],
+  "expect": {
+   "decision": "allow"
+  }
+ },
+ {
+  "name": "ABAC: clearance too low",
+  "kind": "authorize",
+  "policies": [
+   "permit(principal, action, resource) when { principal.clearance >= resource.sensitivity };"
+  ],
+  "request": {
+   "principal": "User::\"alice\"",
+   "action": "Action::\"view\"",
+   "resource": "Doc::\"d1\"",
+   "context": {}
+  },
+  "entities": [
+   {
+    "uid": "User::\"alice\"",
+    "attrs": {
+     "clearance": 1
+    }
+   },
+   {
+    "uid": "Doc::\"d1\"",
+    "attrs": {
+     "sensitivity": 2
+    }
+   }
+  ],
+  "expect": {
+   "decision": "deny"
+  }
+ },
+ {
+  "name": "ReBAC: shared-with set contains principal",
+  "kind": "authorize",
+  "policies": [
+   "permit(principal, action, resource) when { resource.sharedWith.contains(principal) };"
+  ],
+  "request": {
+   "principal": "User::\"alice\"",
+   "action": "Action::\"view\"",
+   "resource": "Doc::\"d1\"",
+   "context": {}
+  },
+  "entities": [
+   {
+    "uid": "Doc::\"d1\"",
+    "attrs": {
+     "sharedWith": [
+      {
+       "__entity": {
+        "type": "User",
+        "id": "alice"
+       }
+      }
+     ]
+    }
+   }
+  ],
+  "expect": {
+   "decision": "allow"
+  }
+ },
+ {
+  "name": "multi-tenant isolation: same tenant",
+  "kind": "authorize",
+  "policies": [
+   "permit(principal, action, resource) when { principal.tenant == resource.tenant };"
+  ],
+  "request": {
+   "principal": "User::\"alice\"",
+   "action": "Action::\"view\"",
+   "resource": "Doc::\"d1\"",
+   "context": {}
+  },
+  "entities": [
+   {
+    "uid": "User::\"alice\"",
+    "attrs": {
+     "tenant": "t1"
+    }
+   },
+   {
+    "uid": "Doc::\"d1\"",
+    "attrs": {
+     "tenant": "t1"
+    }
+   }
+  ],
+  "expect": {
+   "decision": "allow"
+  }
+ },
+ {
+  "name": "multi-tenant isolation: cross-tenant denied",
+  "kind": "authorize",
+  "policies": [
+   "permit(principal, action, resource) when { principal.tenant == resource.tenant };"
+  ],
+  "request": {
+   "principal": "User::\"alice\"",
+   "action": "Action::\"view\"",
+   "resource": "Doc::\"d1\"",
+   "context": {}
+  },
+  "entities": [
+   {
+    "uid": "User::\"alice\"",
+    "attrs": {
+     "tenant": "t1"
+    }
+   },
+   {
+    "uid": "Doc::\"d1\"",
+    "attrs": {
+     "tenant": "t2"
+    }
+   }
+  ],
+  "expect": {
+   "decision": "deny"
+  }
+ },
+ {
+  "name": "break-glass: forbid unless context.breakGlass",
+  "kind": "authorize",
+  "policies": [
+   "permit(principal, action, resource);",
+   "forbid(principal, action, resource) unless { context.breakGlass };"
+  ],
+  "request": {
+   "principal": "User::\"alice\"",
+   "action": "Action::\"view\"",
+   "resource": "Doc::\"d1\"",
+   "context": {
+    "breakGlass": false
+   }
+  },
+  "entities": [],
+  "expect": {
+   "decision": "deny"
+  }
+ },
+ {
+  "name": "break-glass: flag lifts the forbid",
+  "kind": "authorize",
+  "policies": [
+   "permit(principal, action, resource);",
+   "forbid(principal, action, resource) unless { context.breakGlass };"
+  ],
+  "request": {
+   "principal": "User::\"alice\"",
+   "action": "Action::\"view\"",
+   "resource": "Doc::\"d1\"",
+   "context": {
+    "breakGlass": true
+   }
+  },
+  "entities": [],
+  "expect": {
+   "decision": "allow"
+  }
+ },
+ {
+  "name": "separation of duties: author cannot approve",
+  "kind": "authorize",
+  "policies": [
+   "permit(principal, action, resource);",
+   "forbid(principal, action == Action::\"approve\", resource) when { resource.author == principal };"
+  ],
+  "request": {
+   "principal": "User::\"alice\"",
+   "action": "Action::\"approve\"",
+   "resource": "Doc::\"d1\"",
+   "context": {}
+  },
+  "entities": [
+   {
+    "uid": "Doc::\"d1\"",
+    "attrs": {
+     "author": {
+      "__entity": {
+       "type": "User",
+       "id": "alice"
+      }
+     }
+    }
+   }
+  ],
+  "expect": {
+   "decision": "deny"
+  }
+ },
+ {
+  "name": "least privilege: only listed actions",
+  "kind": "authorize",
+  "policies": [
+   "permit(principal, action in [Action::\"view\"], resource);"
+  ],
+  "request": {
+   "principal": "User::\"alice\"",
+   "action": "Action::\"edit\"",
+   "resource": "Doc::\"d1\"",
+   "context": {}
+  },
+  "entities": [],
+  "expect": {
+   "decision": "deny"
+  }
+ },
+ {
+  "name": "data classification: forbid export of PII",
+  "kind": "authorize",
+  "policies": [
+   "permit(principal, action, resource);",
+   "forbid(principal, action == Action::\"export\", resource) when { resource.labels.contains(\"pii\") };"
+  ],
+  "request": {
+   "principal": "User::\"alice\"",
+   "action": "Action::\"export\"",
+   "resource": "Doc::\"d1\"",
+   "context": {}
+  },
+  "entities": [
+   {
+    "uid": "Doc::\"d1\"",
+    "attrs": {
+     "labels": [
+      "pii",
+      "hr"
+     ]
+    }
+   }
+  ],
+  "expect": {
+   "decision": "deny"
+  }
+ },
+ {
+  "name": "classifier-driven: low confidence blocks autonomous action",
+  "kind": "authorize",
+  "policies": [
+   "permit(principal, action, resource);",
+   "forbid(principal, action, resource) when { context.confidence < 60 };"
+  ],
+  "request": {
+   "principal": "User::\"alice\"",
+   "action": "Action::\"view\"",
+   "resource": "Doc::\"d1\"",
+   "context": {
+    "confidence": 59
+   }
+  },
+  "entities": [],
+  "expect": {
+   "decision": "deny"
+  }
+ }
+]

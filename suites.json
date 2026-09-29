@@ -1,0 +1,56 @@
+{
+  "_doc": "Declarative test suites. Each entry names a dataset loader (tools/encode.py LOADERS) and the encoded file it produces. Add a suite by adding an entry (plus a pack in policies/packs.json for Cedar enforcement); use loader \"jsonl\" to bring your own rows. `provides` lists the suite names that tests from this entry report under (fast-decisions splits into classification/automation by whether the domain has a policy pack).",
+  "suites": [
+    {
+      "id": "core",
+      "title": "Fast Decisions",
+      "dataset": "fast-decisions",
+      "loader": "fast_decisions",
+      "file": "{family}.jsonl",
+      "provides": [
+        "classification",
+        "automation"
+      ],
+      "params": {},
+      "repo": "fastino/fast-decisions",
+      "license": "apache-2.0",
+      "what": "17 domains of typed decisions (routing, triage, sentiment, handoff, PII, urgency\u2026), single-label heads"
+    },
+    {
+      "id": "retrieval",
+      "title": "Retrieval",
+      "dataset": "ms-marco",
+      "loader": "ms_marco",
+      "file": "{family}.retrieval.jsonl",
+      "provides": [
+        "retrieval"
+      ],
+      "params": {
+        "n": 400,
+        "seed": 20260929,
+        "pii_fraction": 0.3333333
+      },
+      "repo": "microsoft/ms_marco",
+      "license": "not verified \u2014 research benchmarking only",
+      "what": "query + 4\u201310 candidate passages, pick the gold passage; stratified to include PII-bearing candidates"
+    },
+    {
+      "id": "tools",
+      "title": "Tools",
+      "dataset": "xlam",
+      "loader": "xlam",
+      "file": "{family}.tools.jsonl",
+      "provides": [
+        "tools"
+      ],
+      "params": {
+        "n": 400,
+        "seed": 20260930,
+        "risky_fraction": 0.4
+      },
+      "repo": "Salesforce/xlam-function-calling-60k",
+      "license": "cc-by-4.0",
+      "what": "user request + 3\u20138 candidate tools, pick the tool the gold call uses; stratified to include write/destructive tools"
+    }
+  ]
+}

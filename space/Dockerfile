@@ -20,11 +20,11 @@ COPY src ./src
 RUN dotnet build src/FindAJev.Bench -c Release -o bin -v q
 
 COPY policies ./policies
-COPY models.json server.py ui.py PROJECT.md ./
+COPY models.json suites.json server.py ui.py PROJECT.md ./
 COPY tools ./tools
 COPY results ./results
-# Fail the image build if the policies do not validate or a golden case regresses.
-RUN dotnet bin/FindAJev.Bench.dll policy-test
+# Fail the image build if the policies do not validate, a golden case regresses, or Cedar itself misbehaves (gate checks, <1 s).
+RUN dotnet bin/FindAJev.Bench.dll cedar-suite --checks policy-validate,golden-cases,conformance
 
 # Spaces run the container as uid 1000; the .NET 10 base image already has a user with that uid, so use it numerically
 ENV HOME=/app

@@ -1,0 +1,66 @@
+[
+ {
+  "name": "known request evaluates fully",
+  "kind": "partial",
+  "policies": [
+   "permit(principal == User::\"alice\", action, resource);"
+  ],
+  "request": {
+   "principal": "User::\"alice\"",
+   "action": "Action::\"view\"",
+   "resource": "Doc::\"d1\""
+  },
+  "entities": [],
+  "expect": {
+   "decision": "allow"
+  }
+ },
+ {
+  "name": "unknown principal leaves a residual",
+  "kind": "partial",
+  "policies": [
+   "permit(principal == User::\"alice\", action, resource);"
+  ],
+  "request": {
+   "action": "Action::\"view\"",
+   "resource": "Doc::\"d1\""
+  },
+  "entities": [],
+  "expect": {
+   "decision": "unknown",
+   "nontrivialResiduals": 1
+  }
+ },
+ {
+  "name": "a satisfied unconditional forbid decides despite unknowns",
+  "kind": "partial",
+  "policies": [
+   "forbid(principal, action, resource);",
+   "permit(principal == User::\"alice\", action, resource);"
+  ],
+  "request": {
+   "action": "Action::\"view\"",
+   "resource": "Doc::\"d1\""
+  },
+  "entities": [],
+  "expect": {
+   "decision": "deny"
+  }
+ },
+ {
+  "name": "unknown resource attribute condition stays open",
+  "kind": "partial",
+  "policies": [
+   "permit(principal, action, resource) when { resource.public == true };"
+  ],
+  "request": {
+   "principal": "User::\"alice\"",
+   "action": "Action::\"view\""
+  },
+  "entities": [],
+  "expect": {
+   "decision": "unknown",
+   "nontrivialResiduals": 1
+  }
+ }
+]

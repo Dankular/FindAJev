@@ -20,4 +20,4 @@ when { context.domain == "ticket_route" && context has ticket_urgency && context
 @id("ticket.escalate.permit")
 permit (principal, action == Action::"EscalateHuman", resource)
 when { context.domain == "ticket_route" && context has ticket_queue
-    && ["fraud_review", "compliance", "identity"].contains(context.ticket_queue) };
+    && ["fraud_review", "compliance", "identity", "account_closure", "billing_disputes"].contains(context.ticket_queue) };

@@ -20,7 +20,7 @@ when { context.domain == "clinic_request" && context has clinic_request
 permit (principal, action == Action::"EscalateHuman", resource)
 when { context.domain == "clinic_request" &&
     ((context has clinic_urgent && context.clinic_urgent == "yes")
-     || (context has clinic_request && context.clinic_request == "symptom_question")) };
+     || (context has clinic_request && ["symptom_question", "refill"].contains(context.clinic_request))) };
 
 @id("handoff.bot.permit")
 permit (principal, action == Action::"BotContinue", resource)

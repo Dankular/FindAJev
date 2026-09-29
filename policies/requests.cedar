@@ -18,7 +18,7 @@ when { context.domain == "banking_intent" && context has bank_intent
 @id("bank.escalate.permit")
 permit (principal, action == Action::"EscalateHuman", resource)
 when { context.domain == "banking_intent" && context has bank_intent
-    && ["fraud_alert", "card_lost", "dispute_charge", "close_account", "wire"].contains(context.bank_intent) };
+    && ["fraud_alert", "card_lost", "dispute_charge", "close_account", "wire", "mortgage"].contains(context.bank_intent) };
 
 @id("support.execute.permit-self-service")
 permit (principal, action == Action::"AutoExecute", resource)
@@ -33,7 +33,7 @@ when { context.domain == "support_intent" && context has support_intent
 @id("support.escalate.permit")
 permit (principal, action == Action::"EscalateHuman", resource)
 when { context.domain == "support_intent" && context has support_intent
-    && ["speak_to_human", "complaint", "outage", "damaged_item"].contains(context.support_intent) };
+    && ["speak_to_human", "complaint", "outage", "damaged_item", "cancel_subscription", "change_address", "close_account", "refund_request", "update_payment"].contains(context.support_intent) };
 
 @id("travel.execute.permit")
 permit (principal, action == Action::"AutoExecute", resource)

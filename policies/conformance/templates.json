@@ -1,0 +1,183 @@
+[
+ {
+  "name": "template linked to alice allows alice",
+  "kind": "authorize",
+  "policies": [],
+  "request": {
+   "principal": "User::\"alice\"",
+   "action": "Action::\"view\"",
+   "resource": "Doc::\"d1\"",
+   "context": {}
+  },
+  "entities": [],
+  "expect": {
+   "decision": "allow"
+  },
+  "templates": {
+   "t0": "permit(principal == ?principal, action, resource);"
+  },
+  "links": [
+   {
+    "templateId": "t0",
+    "newId": "l0",
+    "values": {
+     "?principal": {
+      "type": "User",
+      "id": "alice"
+     }
+    }
+   }
+  ]
+ },
+ {
+  "name": "template linked to bob does not allow alice",
+  "kind": "authorize",
+  "policies": [],
+  "request": {
+   "principal": "User::\"alice\"",
+   "action": "Action::\"view\"",
+   "resource": "Doc::\"d1\"",
+   "context": {}
+  },
+  "entities": [],
+  "expect": {
+   "decision": "deny"
+  },
+  "templates": {
+   "t0": "permit(principal == ?principal, action, resource);"
+  },
+  "links": [
+   {
+    "templateId": "t0",
+    "newId": "l0",
+    "values": {
+     "?principal": {
+      "type": "User",
+      "id": "bob"
+     }
+    }
+   }
+  ]
+ },
+ {
+  "name": "an unlinked template grants nothing",
+  "kind": "authorize",
+  "policies": [],
+  "request": {
+   "principal": "User::\"alice\"",
+   "action": "Action::\"view\"",
+   "resource": "Doc::\"d1\"",
+   "context": {}
+  },
+  "entities": [],
+  "expect": {
+   "decision": "deny"
+  },
+  "templates": {
+   "t0": "permit(principal == ?principal, action, resource);"
+  }
+ },
+ {
+  "name": "two links to one template",
+  "kind": "authorize",
+  "policies": [],
+  "request": {
+   "principal": "User::\"alice\"",
+   "action": "Action::\"view\"",
+   "resource": "Doc::\"d1\"",
+   "context": {}
+  },
+  "entities": [],
+  "expect": {
+   "decision": "allow",
+   "reasons": [
+    "l1"
+   ]
+  },
+  "templates": {
+   "t0": "permit(principal == ?principal, action, resource);"
+  },
+  "links": [
+   {
+    "templateId": "t0",
+    "newId": "l0",
+    "values": {
+     "?principal": {
+      "type": "User",
+      "id": "bob"
+     }
+    }
+   },
+   {
+    "templateId": "t0",
+    "newId": "l1",
+    "values": {
+     "?principal": {
+      "type": "User",
+      "id": "alice"
+     }
+    }
+   }
+  ]
+ },
+ {
+  "name": "resource slot",
+  "kind": "authorize",
+  "policies": [],
+  "request": {
+   "principal": "User::\"alice\"",
+   "action": "Action::\"view\"",
+   "resource": "Doc::\"d1\"",
+   "context": {}
+  },
+  "entities": [],
+  "expect": {
+   "decision": "allow"
+  },
+  "templates": {
+   "t1": "permit(principal, action, resource == ?resource);"
+  },
+  "links": [
+   {
+    "templateId": "t1",
+    "newId": "l0",
+    "values": {
+     "?resource": {
+      "type": "Doc",
+      "id": "d1"
+     }
+    }
+   }
+  ]
+ },
+ {
+  "name": "link with a slot the template lacks fails",
+  "kind": "authorize",
+  "policies": [],
+  "request": {
+   "principal": "User::\"alice\"",
+   "action": "Action::\"view\"",
+   "resource": "Doc::\"d1\"",
+   "context": {}
+  },
+  "entities": [],
+  "expect": {
+   "failure": true
+  },
+  "templates": {
+   "t0": "permit(principal == ?principal, action, resource);"
+  },
+  "links": [
+   {
+    "templateId": "t0",
+    "newId": "l0",
+    "values": {
+     "?resource": {
+      "type": "Doc",
+      "id": "d1"
+     }
+    }
+   }
+  ]
+ }
+]

@@ -33,7 +33,7 @@ public sealed class TestMachine
     public List<ActionOutcome> Actions { get; } = new();
     public string? Error { get; private set; }
     public TS State => _sm.State;
-    public string Suite => _pack is null ? "classification" : "automation";
+    public string Suite => _pack?.SuiteName ?? "classification";
     public Prediction[] Predictions => _preds;
     public Row? Row => _row;
     public static object Graph() => Events.Graph(new TestMachine(0, null, null)._sm, "test");

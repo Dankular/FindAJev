@@ -22,7 +22,9 @@ public sealed record Item(
     [property: JsonPropertyName("pos")] long[] Pos,
     [property: JsonPropertyName("qtype")] long QType = 0,
     [property: JsonPropertyName("task")] string Task = "",
-    [property: JsonPropertyName("labels")] string[]? Labels = null);
+    [property: JsonPropertyName("labels")] string[]? Labels = null,
+    [property: JsonPropertyName("suite")] string Suite = "",
+    [property: JsonPropertyName("optAttrs")] Dictionary<string, string[]>? OptAttrs = null);
 
 public sealed class RunResult
 {
@@ -41,6 +43,10 @@ public sealed class RunResult
     public double Accuracy { get; set; }
     public Dictionary<string, double> AccuracyByDomain { get; set; } = new();
     public double PeakRssMb { get; set; }
+    /// <summary>Non-default selections that make this run comparable only to runs with the same variant ("" = all suites, default parameters).</summary>
+    public string Variant { get; set; } = "";
+    public string[] SuitesRun { get; set; } = Array.Empty<string>();
+    public Dictionary<string, long> PolicyParams { get; set; } = new();
     /// <summary>Per-suite outcome counts from the per-test state machines (empty when run without policies).</summary>
     public Dictionary<string, SuiteResult> Suites { get; set; } = new();
     public string Cpu { get; set; } = "";
@@ -49,6 +55,11 @@ public sealed class RunResult
 
 public sealed class SuiteResult
 {
+    public int Heads { get; set; }              // model calls (single-label decisions) in this suite
+    public double Accuracy { get; set; }        // head-level argmax accuracy
+    public double MeanMs { get; set; }
+    public double P50Ms { get; set; }
+    public double P95Ms { get; set; }
     public int Tests { get; set; }
     public int Correct { get; set; }
     public int WrongButSafe { get; set; }

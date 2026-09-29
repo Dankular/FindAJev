@@ -1,0 +1,192 @@
+[
+ {
+  "name": "valid schema (text)",
+  "kind": "parse-schema",
+  "schema": "entity User; entity Doc; action view appliesTo { principal: [User], resource: [Doc] };",
+  "expect": {
+   "ok": true
+  }
+ },
+ {
+  "name": "valid schema (JSON) is accepted too",
+  "kind": "parse-schema",
+  "schema": {
+   "": {
+    "entityTypes": {
+     "User": {},
+     "Doc": {}
+    },
+    "actions": {
+     "view": {
+      "appliesTo": {
+       "principalTypes": [
+        "User"
+       ],
+       "resourceTypes": [
+        "Doc"
+       ]
+      }
+     }
+    }
+   }
+  },
+  "expect": {
+   "ok": true
+  }
+ },
+ {
+  "name": "schema syntax error",
+  "kind": "parse-schema",
+  "schema": "entity User {",
+  "expect": {
+   "ok": false
+  }
+ },
+ {
+  "name": "schema referencing an undefined type",
+  "kind": "parse-schema",
+  "schema": "entity User { boss: Manager };",
+  "expect": {
+   "ok": false,
+   "contains": "Manager"
+  }
+ },
+ {
+  "name": "valid policy set",
+  "kind": "parse-policies",
+  "policies": [
+   "permit(principal, action, resource);"
+  ],
+  "expect": {
+   "ok": true
+  }
+ },
+ {
+  "name": "policy syntax error",
+  "kind": "parse-policies",
+  "policies": [
+   "permit(principal, action resource);"
+  ],
+  "expect": {
+   "ok": false
+  }
+ },
+ {
+  "name": "policy with an unknown method parses (checked later)",
+  "kind": "parse-policies",
+  "policies": [
+   "permit(principal, action, resource) when { context.x.frobnicate() };"
+  ],
+  "expect": {
+   "ok": false
+  }
+ },
+ {
+  "name": "entities: well formed",
+  "kind": "parse-entities",
+  "entities": [
+   {
+    "uid": "User::\"alice\"",
+    "attrs": {
+     "dept": "eng"
+    }
+   }
+  ],
+  "expect": {
+   "ok": true
+  }
+ },
+ {
+  "name": "entities: validated against the schema (missing attr)",
+  "kind": "parse-entities",
+  "schema": "entity User { dept: String, level: Long };\nentity Doc { owner: User, tags: Set<String>, note?: String };\naction view appliesTo { principal: [User], resource: [Doc], context: { ip?: String } };\naction edit appliesTo { principal: [User], resource: [Doc] };",
+  "entities": [
+   {
+    "uid": "User::\"alice\"",
+    "attrs": {
+     "dept": "eng"
+    }
+   }
+  ],
+  "expect": {
+   "ok": false,
+   "contains": "level"
+  }
+ },
+ {
+  "name": "entities: validated against the schema (ok)",
+  "kind": "parse-entities",
+  "schema": "entity User { dept: String, level: Long };\nentity Doc { owner: User, tags: Set<String>, note?: String };\naction view appliesTo { principal: [User], resource: [Doc], context: { ip?: String } };\naction edit appliesTo { principal: [User], resource: [Doc] };",
+  "entities": [
+   {
+    "uid": "User::\"alice\"",
+    "attrs": {
+     "dept": "eng",
+     "level": 3
+    }
+   }
+  ],
+  "expect": {
+   "ok": true
+  }
+ },
+ {
+  "name": "context: valid for the action",
+  "kind": "parse-context",
+  "schema": "entity User { dept: String, level: Long };\nentity Doc { owner: User, tags: Set<String>, note?: String };\naction view appliesTo { principal: [User], resource: [Doc], context: { ip?: String } };\naction edit appliesTo { principal: [User], resource: [Doc] };",
+  "action": "Action::\"view\"",
+  "context": {
+   "ip": "1.2.3.4"
+  },
+  "expect": {
+   "ok": true
+  }
+ },
+ {
+  "name": "context: wrong attribute type for the action",
+  "kind": "parse-context",
+  "schema": "entity User { dept: String, level: Long };\nentity Doc { owner: User, tags: Set<String>, note?: String };\naction view appliesTo { principal: [User], resource: [Doc], context: { ip?: String } };\naction edit appliesTo { principal: [User], resource: [Doc] };",
+  "action": "Action::\"view\"",
+  "context": {
+   "ip": 5
+  },
+  "expect": {
+   "ok": false
+  }
+ },
+ {
+  "name": "format: messy policy is normalised",
+  "kind": "format",
+  "policy": "permit(principal,action,resource)when{ context.a==1&&context.b==2 };",
+  "expect": {
+   "contains": "permit"
+  }
+ },
+ {
+  "name": "format: idempotent on an annotated multi-clause policy",
+  "kind": "format",
+  "policy": "@id(\"x\") forbid(principal, action, resource) when { context.n > 1 } unless { context.ok };",
+  "expect": {}
+ },
+ {
+  "name": "text -> JSON -> text keeps the policy's meaning",
+  "kind": "roundtrip",
+  "policy": "permit(principal == User::\"alice\", action in [Action::\"view\", Action::\"edit\"], resource is Doc) when { context.n > 1 && resource.tags.contains(\"a\") };",
+  "expect": {}
+ },
+ {
+  "name": "roundtrip with unless + like",
+  "kind": "roundtrip",
+  "policy": "forbid(principal, action, resource) unless { resource.name like \"a*b\" };",
+  "expect": {}
+ },
+ {
+  "name": "policy set text splits into policies + templates",
+  "kind": "parts",
+  "text": "permit(principal, action, resource); forbid(principal, action, resource); permit(principal == ?principal, action, resource);",
+  "expect": {
+   "policies": 2,
+   "templates": 1
+  }
+ }
+]

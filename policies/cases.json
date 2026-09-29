@@ -10,7 +10,8 @@
    "email_action": "reply",
    "email_phishing": "no",
    "email_category": "support",
-   "minConfidence": 100
+   "minConfidence": 100,
+   "options": 2
   },
   "by": "email.autoreply.permit"
  },
@@ -25,7 +26,8 @@
    "email_action": "reply",
    "email_phishing": "yes",
    "email_category": "support",
-   "minConfidence": 100
+   "minConfidence": 100,
+   "options": 2
   },
   "by": "email.autoreply.forbid-phishing"
  },
@@ -40,7 +42,8 @@
    "email_action": "reply",
    "email_phishing": "no",
    "email_category": "legal",
-   "minConfidence": 100
+   "minConfidence": 100,
+   "options": 2
   },
   "by": "email.autoreply.forbid-sensitive-category"
  },
@@ -55,7 +58,8 @@
    "email_action": "reply",
    "email_phishing": "no",
    "email_category": "security",
-   "minConfidence": 100
+   "minConfidence": 100,
+   "options": 2
   },
   "by": "email.autoreply.forbid-sensitive-category"
  },
@@ -70,7 +74,8 @@
    "email_action": "fyi",
    "email_phishing": "no",
    "email_category": "newsletter",
-   "minConfidence": 100
+   "minConfidence": 100,
+   "options": 2
   }
  },
  {
@@ -84,7 +89,8 @@
    "email_action": "reply",
    "email_phishing": "no",
    "email_category": "support",
-   "minConfidence": 59
+   "minConfidence": 59,
+   "options": 2
   },
   "by": "guard.low-confidence"
  },
@@ -99,7 +105,8 @@
    "email_action": "reply",
    "email_phishing": "no",
    "email_category": "support",
-   "minConfidence": 60
+   "minConfidence": 60,
+   "options": 2
   },
   "by": "email.autoreply.permit"
  },
@@ -111,7 +118,8 @@
   "expect": "allow",
   "ctx": {
    "email_phishing": "yes",
-   "minConfidence": 100
+   "minConfidence": 100,
+   "options": 2
   },
   "by": "email.quarantine.permit"
  },
@@ -123,7 +131,8 @@
   "expect": "deny",
   "ctx": {
    "email_phishing": "no",
-   "minConfidence": 100
+   "minConfidence": 100,
+   "options": 2
   }
  },
  {
@@ -134,7 +143,8 @@
   "expect": "allow",
   "ctx": {
    "email_phishing": "yes",
-   "minConfidence": 10
+   "minConfidence": 10,
+   "options": 2
   },
   "by": "email.quarantine.permit"
  },
@@ -147,7 +157,8 @@
   "ctx": {
    "email_action": "escalate",
    "email_category": "billing",
-   "minConfidence": 100
+   "minConfidence": 100,
+   "options": 2
   },
   "by": "email.escalate.permit"
  },
@@ -160,7 +171,8 @@
   "ctx": {
    "email_action": "fyi",
    "email_category": "legal",
-   "minConfidence": 100
+   "minConfidence": 100,
+   "options": 2
   },
   "by": "email.escalate.permit"
  },
@@ -174,7 +186,8 @@
    "ticket_pii": "no",
    "ticket_urgency": "normal",
    "ticket_queue": "shipping",
-   "minConfidence": 100
+   "minConfidence": 100,
+   "options": 2
   },
   "by": "ticket.autoroute.permit"
  },
@@ -188,7 +201,8 @@
    "ticket_pii": "yes",
    "ticket_urgency": "normal",
    "ticket_queue": "shipping",
-   "minConfidence": 100
+   "minConfidence": 100,
+   "options": 2
   }
  },
  {
@@ -201,7 +215,8 @@
    "ticket_pii": "no",
    "ticket_urgency": "low",
    "ticket_queue": "fraud_review",
-   "minConfidence": 100
+   "minConfidence": 100,
+   "options": 2
   },
   "by": "ticket.autoroute.forbid-sensitive-queue"
  },
@@ -215,7 +230,8 @@
    "ticket_pii": "no",
    "ticket_urgency": "high",
    "ticket_queue": "shipping",
-   "minConfidence": 100
+   "minConfidence": 100,
+   "options": 2
   }
  },
  {
@@ -226,7 +242,8 @@
   "expect": "allow",
   "ctx": {
    "ticket_pii": "yes",
-   "minConfidence": 100
+   "minConfidence": 100,
+   "options": 2
   },
   "by": "ticket.redact.permit"
  },
@@ -238,7 +255,8 @@
   "expect": "allow",
   "ctx": {
    "ticket_urgency": "critical",
-   "minConfidence": 100
+   "minConfidence": 100,
+   "options": 2
   },
   "by": "ticket.page.permit"
  },
@@ -250,7 +268,8 @@
   "expect": "deny",
   "ctx": {
    "ticket_urgency": "high",
-   "minConfidence": 100
+   "minConfidence": 100,
+   "options": 2
   }
  },
  {
@@ -261,7 +280,8 @@
   "expect": "allow",
   "ctx": {
    "ticket_queue": "compliance",
-   "minConfidence": 100
+   "minConfidence": 100,
+   "options": 2
   },
   "by": "ticket.escalate.permit"
  },
@@ -274,7 +294,8 @@
   "ctx": {
    "clinic_urgent": "no",
    "clinic_request": "appointment",
-   "minConfidence": 100
+   "minConfidence": 100,
+   "options": 2
   },
   "by": "clinic.selfserve.permit"
  },
@@ -287,7 +308,8 @@
   "ctx": {
    "clinic_urgent": "yes",
    "clinic_request": "appointment",
-   "minConfidence": 100
+   "minConfidence": 100,
+   "options": 2
   },
   "by": "clinic.selfserve.forbid-urgent"
  },
@@ -300,7 +322,8 @@
   "ctx": {
    "clinic_urgent": "no",
    "clinic_request": "symptom_question",
-   "minConfidence": 100
+   "minConfidence": 100,
+   "options": 2
   },
   "by": "clinic.selfserve.forbid-clinical"
  },
@@ -313,7 +336,8 @@
   "ctx": {
    "clinic_urgent": "no",
    "clinic_request": "refill",
-   "minConfidence": 100
+   "minConfidence": 100,
+   "options": 2
   },
   "by": "clinic.selfserve.forbid-clinical"
  },
@@ -326,7 +350,8 @@
   "ctx": {
    "clinic_urgent": "yes",
    "clinic_request": "billing",
-   "minConfidence": 100
+   "minConfidence": 100,
+   "options": 2
   },
   "by": "clinic.escalate.permit"
  },
@@ -339,7 +364,8 @@
   "ctx": {
    "clinic_urgent": "no",
    "clinic_request": "billing",
-   "minConfidence": 100
+   "minConfidence": 100,
+   "options": 2
   }
  },
  {
@@ -350,7 +376,8 @@
   "expect": "allow",
   "ctx": {
    "handoff": "no",
-   "minConfidence": 100
+   "minConfidence": 100,
+   "options": 2
   },
   "by": "handoff.bot.permit"
  },
@@ -362,7 +389,8 @@
   "expect": "deny",
   "ctx": {
    "handoff": "yes",
-   "minConfidence": 100
+   "minConfidence": 100,
+   "options": 2
   }
  },
  {
@@ -373,7 +401,8 @@
   "expect": "allow",
   "ctx": {
    "handoff": "yes",
-   "minConfidence": 100
+   "minConfidence": 100,
+   "options": 2
   },
   "by": "handoff.escalate.permit"
  },
@@ -385,7 +414,8 @@
   "expect": "allow",
   "ctx": {
    "bank_intent": "balance",
-   "minConfidence": 100
+   "minConfidence": 100,
+   "options": 2
   },
   "by": "bank.execute.permit-low-risk"
  },
@@ -397,7 +427,8 @@
   "expect": "deny",
   "ctx": {
    "bank_intent": "fraud_alert",
-   "minConfidence": 100
+   "minConfidence": 100,
+   "options": 2
   },
   "by": "bank.execute.forbid-high-risk"
  },
@@ -409,7 +440,8 @@
   "expect": "allow",
   "ctx": {
    "bank_intent": "wire",
-   "minConfidence": 100
+   "minConfidence": 100,
+   "options": 2
   },
   "by": "bank.stepup.permit"
  },
@@ -421,7 +453,8 @@
   "expect": "allow",
   "ctx": {
    "bank_intent": "card_lost",
-   "minConfidence": 100
+   "minConfidence": 100,
+   "options": 2
   },
   "by": "bank.escalate.permit"
  },
@@ -433,7 +466,8 @@
   "expect": "deny",
   "ctx": {
    "bank_intent": "balance",
-   "minConfidence": 100
+   "minConfidence": 100,
+   "options": 2
   }
  },
  {
@@ -444,7 +478,8 @@
   "expect": "allow",
   "ctx": {
    "support_intent": "order_status",
-   "minConfidence": 100
+   "minConfidence": 100,
+   "options": 2
   },
   "by": "support.execute.permit-self-service"
  },
@@ -456,7 +491,8 @@
   "expect": "deny",
   "ctx": {
    "support_intent": "close_account",
-   "minConfidence": 100
+   "minConfidence": 100,
+   "options": 2
   },
   "by": "support.execute.forbid-destructive"
  },
@@ -468,7 +504,8 @@
   "expect": "allow",
   "ctx": {
    "support_intent": "speak_to_human",
-   "minConfidence": 100
+   "minConfidence": 100,
+   "options": 2
   },
   "by": "support.escalate.permit"
  },
@@ -480,7 +517,8 @@
   "expect": "allow",
   "ctx": {
    "travel_intent": "seat",
-   "minConfidence": 100
+   "minConfidence": 100,
+   "options": 2
   },
   "by": "travel.execute.permit"
  },
@@ -492,7 +530,8 @@
   "expect": "allow",
   "ctx": {
    "travel_intent": "disruption",
-   "minConfidence": 100
+   "minConfidence": 100,
+   "options": 2
   },
   "by": "travel.escalate.permit"
  },
@@ -505,7 +544,8 @@
   "ctx": {
    "benefit_status": "yes",
    "benefit_program": "pension",
-   "minConfidence": 100
+   "minConfidence": 100,
+   "options": 2
   },
   "by": "benefits.reply.permit-status"
  },
@@ -518,7 +558,8 @@
   "ctx": {
    "benefit_status": "yes",
    "benefit_program": "other",
-   "minConfidence": 100
+   "minConfidence": 100,
+   "options": 2
   }
  },
  {
@@ -530,7 +571,8 @@
   "ctx": {
    "benefit_status": "no",
    "benefit_program": "pension",
-   "minConfidence": 100
+   "minConfidence": 100,
+   "options": 2
   }
  },
  {
@@ -541,7 +583,8 @@
   "expect": "allow",
   "ctx": {
    "review_sentiment": "positive",
-   "minConfidence": 100
+   "minConfidence": 100,
+   "options": 2
   },
   "by": "review.thank.permit"
  },
@@ -553,7 +596,8 @@
   "expect": "allow",
   "ctx": {
    "review_sentiment": "negative",
-   "minConfidence": 100
+   "minConfidence": 100,
+   "options": 2
   },
   "by": "review.escalate.permit"
  },
@@ -565,7 +609,8 @@
   "expect": "deny",
   "ctx": {
    "review_sentiment": "neutral",
-   "minConfidence": 100
+   "minConfidence": 100,
+   "options": 2
   }
  },
  {
@@ -576,7 +621,8 @@
   "expect": "allow",
   "ctx": {
    "review_sentiment": "positive",
-   "minConfidence": 100
+   "minConfidence": 100,
+   "options": 2
   },
   "by": "review.thank.permit"
  },
@@ -588,7 +634,8 @@
   "expect": "allow",
   "ctx": {
    "review_sentiment": "negative",
-   "minConfidence": 100
+   "minConfidence": 100,
+   "options": 2
   },
   "by": "review.escalate.permit"
  },
@@ -600,7 +647,8 @@
   "expect": "deny",
   "ctx": {
    "review_sentiment": "neutral",
-   "minConfidence": 100
+   "minConfidence": 100,
+   "options": 2
   }
  },
  {
@@ -611,7 +659,8 @@
   "expect": "allow",
   "ctx": {
    "feedback_type": "bug",
-   "minConfidence": 100
+   "minConfidence": 100,
+   "options": 2
   },
   "by": "feedback.bug.permit"
  },
@@ -623,7 +672,8 @@
   "expect": "allow",
   "ctx": {
    "feedback_type": "how_to",
-   "minConfidence": 100
+   "minConfidence": 100,
+   "options": 2
   },
   "by": "feedback.reply.permit"
  },
@@ -635,7 +685,8 @@
   "expect": "deny",
   "ctx": {
    "feedback_type": "feature_request",
-   "minConfidence": 100
+   "minConfidence": 100,
+   "options": 2
   }
  },
  {
@@ -646,7 +697,8 @@
   "expect": "deny",
   "ctx": {
    "email_phishing": "no",
-   "minConfidence": 100
+   "minConfidence": 100,
+   "options": 2
   }
  },
  {
@@ -702,5 +754,396 @@
   "threads": 16,
   "cpus": 2,
   "by": "run.run.forbid-oversubscribe"
+ },
+ {
+  "name": "retrieval serve clean",
+  "kind": "test",
+  "domain": "retrieval",
+  "action": "ServePassage",
+  "expect": "allow",
+  "ctx": {
+   "passage_pii": "no",
+   "passage_source": "other",
+   "minConfidence": 100,
+   "options": 2
+  },
+  "by": "retrieval.serve.permit-clean"
+ },
+ {
+  "name": "retrieval pii not served",
+  "kind": "test",
+  "domain": "retrieval",
+  "action": "ServePassage",
+  "expect": "deny",
+  "ctx": {
+   "passage_pii": "yes",
+   "passage_source": "high",
+   "minConfidence": 100,
+   "options": 2
+  },
+  "by": "retrieval.serve.forbid-pii"
+ },
+ {
+  "name": "retrieval pii redacted",
+  "kind": "test",
+  "domain": "retrieval",
+  "action": "RedactPassage",
+  "expect": "allow",
+  "ctx": {
+   "passage_pii": "yes",
+   "passage_source": "other",
+   "minConfidence": 100,
+   "options": 2
+  },
+  "by": "retrieval.redact.permit"
+ },
+ {
+  "name": "retrieval clean needs no redaction",
+  "kind": "test",
+  "domain": "retrieval",
+  "action": "RedactPassage",
+  "expect": "deny",
+  "ctx": {
+   "passage_pii": "no",
+   "passage_source": "other",
+   "minConfidence": 100,
+   "options": 2
+  }
+ },
+ {
+  "name": "retrieval cite trusted clean",
+  "kind": "test",
+  "domain": "retrieval",
+  "action": "CitePassage",
+  "expect": "allow",
+  "ctx": {
+   "passage_pii": "no",
+   "passage_source": "high",
+   "minConfidence": 100,
+   "options": 2
+  },
+  "by": "retrieval.cite.permit-trusted-clean"
+ },
+ {
+  "name": "retrieval no cite for unknown source",
+  "kind": "test",
+  "domain": "retrieval",
+  "action": "CitePassage",
+  "expect": "deny",
+  "ctx": {
+   "passage_pii": "no",
+   "passage_source": "other",
+   "minConfidence": 100,
+   "options": 2
+  }
+ },
+ {
+  "name": "retrieval no cite for pii even if trusted",
+  "kind": "test",
+  "domain": "retrieval",
+  "action": "CitePassage",
+  "expect": "deny",
+  "ctx": {
+   "passage_pii": "yes",
+   "passage_source": "high",
+   "minConfidence": 100,
+   "options": 2
+  }
+ },
+ {
+  "name": "retrieval low confidence not served",
+  "kind": "test",
+  "domain": "retrieval",
+  "action": "ServePassage",
+  "expect": "deny",
+  "ctx": {
+   "passage_pii": "no",
+   "passage_source": "high",
+   "minConfidence": 40,
+   "options": 2
+  },
+  "by": "guard.low-confidence"
+ },
+ {
+  "name": "tool read runs",
+  "kind": "test",
+  "domain": "tools",
+  "action": "InvokeTool",
+  "expect": "allow",
+  "ctx": {
+   "tool_risk": "read",
+   "minConfidence": 100,
+   "options": 2
+  },
+  "by": "tools.invoke.permit-read"
+ },
+ {
+  "name": "tool write needs approval, not unattended",
+  "kind": "test",
+  "domain": "tools",
+  "action": "InvokeTool",
+  "expect": "deny",
+  "ctx": {
+   "tool_risk": "write",
+   "minConfidence": 100,
+   "options": 2
+  }
+ },
+ {
+  "name": "tool destructive forbidden",
+  "kind": "test",
+  "domain": "tools",
+  "action": "InvokeTool",
+  "expect": "deny",
+  "ctx": {
+   "tool_risk": "destructive",
+   "minConfidence": 100,
+   "options": 2
+  },
+  "by": "tools.invoke.forbid-destructive"
+ },
+ {
+  "name": "tool write requires approval",
+  "kind": "test",
+  "domain": "tools",
+  "action": "RequireApproval",
+  "expect": "allow",
+  "ctx": {
+   "tool_risk": "write",
+   "minConfidence": 100,
+   "options": 2
+  },
+  "by": "tools.approval.permit-mutating"
+ },
+ {
+  "name": "tool read requires no approval",
+  "kind": "test",
+  "domain": "tools",
+  "action": "RequireApproval",
+  "expect": "deny",
+  "ctx": {
+   "tool_risk": "read",
+   "minConfidence": 100,
+   "options": 2
+  }
+ },
+ {
+  "name": "tool destructive escalates",
+  "kind": "test",
+  "domain": "tools",
+  "action": "EscalateHuman",
+  "expect": "allow",
+  "ctx": {
+   "tool_risk": "destructive",
+   "minConfidence": 100,
+   "options": 2
+  },
+  "by": "tools.escalate.permit-destructive"
+ },
+ {
+  "name": "tool write does not escalate",
+  "kind": "test",
+  "domain": "tools",
+  "action": "EscalateHuman",
+  "expect": "deny",
+  "ctx": {
+   "tool_risk": "write",
+   "minConfidence": 100,
+   "options": 2
+  }
+ },
+ {
+  "name": "tool read low confidence blocked",
+  "kind": "test",
+  "domain": "tools",
+  "action": "InvokeTool",
+  "expect": "deny",
+  "ctx": {
+   "tool_risk": "read",
+   "minConfidence": 59,
+   "options": 2
+  },
+  "by": "guard.low-confidence"
+ },
+ {
+  "name": "many options: 40% is enough",
+  "kind": "test",
+  "domain": "retrieval",
+  "action": "ServePassage",
+  "expect": "allow",
+  "ctx": {
+   "passage_pii": "no",
+   "passage_source": "high",
+   "minConfidence": 40,
+   "options": 10
+  },
+  "by": "retrieval.serve.permit-clean"
+ },
+ {
+  "name": "many options: 34% is not",
+  "kind": "test",
+  "domain": "retrieval",
+  "action": "ServePassage",
+  "expect": "deny",
+  "ctx": {
+   "passage_pii": "no",
+   "passage_source": "high",
+   "minConfidence": 34,
+   "options": 10
+  },
+  "by": "guard.low-confidence-many"
+ },
+ {
+  "name": "few options: 59% is not enough (3 options)",
+  "kind": "test",
+  "domain": "retrieval",
+  "action": "ServePassage",
+  "expect": "deny",
+  "ctx": {
+   "passage_pii": "no",
+   "passage_source": "high",
+   "minConfidence": 59,
+   "options": 3
+  },
+  "by": "guard.low-confidence"
+ },
+ {
+  "name": "boundary: 4 options uses the strict bar",
+  "kind": "test",
+  "domain": "retrieval",
+  "action": "ServePassage",
+  "expect": "deny",
+  "ctx": {
+   "passage_pii": "no",
+   "passage_source": "high",
+   "minConfidence": 50,
+   "options": 4
+  },
+  "by": "guard.low-confidence"
+ },
+ {
+  "name": "boundary: 5 options uses the relaxed bar",
+  "kind": "test",
+  "domain": "retrieval",
+  "action": "ServePassage",
+  "expect": "allow",
+  "ctx": {
+   "passage_pii": "no",
+   "passage_source": "high",
+   "minConfidence": 50,
+   "options": 5
+  },
+  "by": "retrieval.serve.permit-clean"
+ },
+ {
+  "name": "boundary: exactly 35 is enough with many options",
+  "kind": "test",
+  "domain": "retrieval",
+  "action": "ServePassage",
+  "expect": "allow",
+  "ctx": {
+   "passage_pii": "no",
+   "passage_source": "high",
+   "minConfidence": 35,
+   "options": 10
+  },
+  "by": "retrieval.serve.permit-clean"
+ },
+ {
+  "name": "boundary: exactly 60 is enough with few options",
+  "kind": "test",
+  "domain": "retrieval",
+  "action": "ServePassage",
+  "expect": "allow",
+  "ctx": {
+   "passage_pii": "no",
+   "passage_source": "high",
+   "minConfidence": 60,
+   "options": 3
+  },
+  "by": "retrieval.serve.permit-clean"
+ },
+ {
+  "name": "safety net: account_closure ticket escalates",
+  "kind": "test",
+  "domain": "ticket_route",
+  "action": "EscalateHuman",
+  "expect": "allow",
+  "ctx": {
+   "ticket_queue": "account_closure",
+   "options": 16,
+   "minConfidence": 100
+  },
+  "by": "ticket.escalate.permit"
+ },
+ {
+  "name": "safety net: refill escalates",
+  "kind": "test",
+  "domain": "clinic_request",
+  "action": "EscalateHuman",
+  "expect": "allow",
+  "ctx": {
+   "clinic_request": "refill",
+   "clinic_urgent": "no",
+   "options": 11,
+   "minConfidence": 100
+  },
+  "by": "clinic.escalate.permit"
+ },
+ {
+  "name": "safety net: mortgage escalates",
+  "kind": "test",
+  "domain": "banking_intent",
+  "action": "EscalateHuman",
+  "expect": "allow",
+  "ctx": {
+   "bank_intent": "mortgage",
+   "options": 16,
+   "minConfidence": 100
+  },
+  "by": "bank.escalate.permit"
+ },
+ {
+  "name": "safety net: refund_request escalates",
+  "kind": "test",
+  "domain": "support_intent",
+  "action": "EscalateHuman",
+  "expect": "allow",
+  "ctx": {
+   "support_intent": "refund_request",
+   "options": 28,
+   "minConfidence": 100
+  },
+  "by": "support.escalate.permit"
+ },
+ {
+  "name": "boundary: 4 options below both bars is denied by the strict guard alone",
+  "kind": "test",
+  "domain": "retrieval",
+  "action": "ServePassage",
+  "expect": "deny",
+  "by": "guard.low-confidence",
+  "exact": true,
+  "ctx": {
+   "passage_pii": "no",
+   "passage_source": "high",
+   "minConfidence": 30,
+   "options": 4
+  }
+ },
+ {
+  "name": "boundary: 5 options below the relaxed bar is denied by the relaxed guard alone",
+  "kind": "test",
+  "domain": "retrieval",
+  "action": "ServePassage",
+  "expect": "deny",
+  "by": "guard.low-confidence-many",
+  "exact": true,
+  "ctx": {
+   "passage_pii": "no",
+   "passage_source": "high",
+   "minConfidence": 30,
+   "options": 5
+  }
  }
 ]

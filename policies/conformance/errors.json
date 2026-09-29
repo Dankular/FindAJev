@@ -1,0 +1,133 @@
+[
+ {
+  "name": "missing attribute (no has) -> policy errors, deny",
+  "kind": "authorize",
+  "policies": [
+   "permit(principal, action, resource) when { resource.owner == \"x\" };"
+  ],
+  "request": {
+   "principal": "User::\"alice\"",
+   "action": "Action::\"view\"",
+   "resource": "Doc::\"d1\"",
+   "context": {}
+  },
+  "entities": [
+   {
+    "uid": "Doc::\"d1\""
+   }
+  ],
+  "expect": {
+   "decision": "deny",
+   "errors": 1
+  }
+ },
+ {
+  "name": "an erroring forbid does not block a good permit",
+  "kind": "authorize",
+  "policies": [
+   "permit(principal, action, resource);",
+   "forbid(principal, action, resource) when { resource.owner == \"x\" };"
+  ],
+  "request": {
+   "principal": "User::\"alice\"",
+   "action": "Action::\"view\"",
+   "resource": "Doc::\"d1\"",
+   "context": {}
+  },
+  "entities": [
+   {
+    "uid": "Doc::\"d1\""
+   }
+  ],
+  "expect": {
+   "decision": "allow",
+   "errors": 1
+  }
+ },
+ {
+  "name": "an erroring permit is skipped, another permit still allows",
+  "kind": "authorize",
+  "policies": [
+   "permit(principal, action, resource) when { resource.owner == \"x\" };",
+   "permit(principal, action, resource);"
+  ],
+  "request": {
+   "principal": "User::\"alice\"",
+   "action": "Action::\"view\"",
+   "resource": "Doc::\"d1\"",
+   "context": {}
+  },
+  "entities": [
+   {
+    "uid": "Doc::\"d1\""
+   }
+  ],
+  "expect": {
+   "decision": "allow",
+   "reasons": [
+    "p1"
+   ],
+   "errors": 1
+  }
+ },
+ {
+  "name": "integer overflow is an error, not a wrap",
+  "kind": "authorize",
+  "policies": [
+   "permit(principal, action, resource) when { context.n + 1 > 0 };"
+  ],
+  "request": {
+   "principal": "User::\"alice\"",
+   "action": "Action::\"view\"",
+   "resource": "Doc::\"d1\"",
+   "context": {
+    "n": 9223372036854775807
+   }
+  },
+  "entities": [],
+  "expect": {
+   "decision": "deny",
+   "errors": 1
+  }
+ },
+ {
+  "name": "type error in condition is an error",
+  "kind": "authorize",
+  "policies": [
+   "permit(principal, action, resource) when { context.s + 1 > 0 };"
+  ],
+  "request": {
+   "principal": "User::\"alice\"",
+   "action": "Action::\"view\"",
+   "resource": "Doc::\"d1\"",
+   "context": {
+    "s": "text"
+   }
+  },
+  "entities": [],
+  "expect": {
+   "decision": "deny",
+   "errors": 1
+  }
+ },
+ {
+  "name": "division-free arithmetic near the limit is fine",
+  "kind": "authorize",
+  "policies": [
+   "permit(principal, action, resource) when { context.n - 1 < context.n };"
+  ],
+  "request": {
+   "principal": "User::\"alice\"",
+   "action": "Action::\"view\"",
+   "resource": "Doc::\"d1\"",
+   "context": {
+    "n": 9223372036854775807
+   }
+  },
+  "entities": [],
+  "expect": {
+   "decision": "allow",
+   "errors": 0
+  }
+ }
+]

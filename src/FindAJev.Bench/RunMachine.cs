@@ -28,6 +28,8 @@ public sealed class RunMachine
     InferenceSession? _session;
     List<Dictionary<string, OrtValue>>? _inputs;
     readonly List<double> _ms = new();
+    readonly List<(int item, double ms)> _msItem = new();   // every timed call with the item it belongs to (all repeats)
+    string[] _suiteOf = Array.Empty<string>();
     readonly List<float[]> _logits = new();
     readonly RunResult _r = new();
 
@@ -141,6 +143,9 @@ public sealed class RunMachine
         _session = new InferenceSession(OnnxPath, o); // CPUExecutionProvider is the default; no other EP is appended
         _inputs = _items.Select(BuildInputs).ToList();
         _r.LoadSeconds = sw.Elapsed.TotalSeconds;
+        // suite of each item: explicit (retrieval/tools files) or derived from the domain's policy pack (core files)
+        _suiteOf = _items.Select(it => it.Suite.Length > 0 ? it.Suite
+            : _pe is not null && _pe.Packs.TryGetValue(it.Domain, out var pk) ? pk.SuiteName : _pe is not null ? "classification" : "core").ToArray();
         Progress("loaded", 0, _items.Count, 0);
     }
 
@@ -194,6 +199,7 @@ public sealed class RunMachine
         var lg = Infer(i);
         var ms = Stopwatch.GetElapsedTime(sw).TotalMilliseconds;
         _ms.Add(ms);
+        _msItem.Add((i, ms));
         _lastLogits = lg;
         return ms;
     }
@@ -210,9 +216,9 @@ public sealed class RunMachine
             Events.Emit(new
             {
                 e = "plan", model = _spec.Id, tests = rows.Count,
-                suites = rows.GroupBy(r => _pe!.Packs.ContainsKey(r.Domain) ? "automation" : "classification").ToDictionary(g => g.Key, g => g.Count()),
+                suites = rows.GroupBy(r => _suiteOf[r.Start]).ToDictionary(g => g.Key, g => g.Count()),
                 domains = rows.GroupBy(r => r.Domain).ToDictionary(g => g.Key, g => g.Count()),
-                packDomains = _pe!.Packs.Keys.ToDictionary(k => k, _ => true),
+                packDomains = _pe!.Packs.ToDictionary(k => k.Key, k => k.Value.SuiteName),
                 keys = rows.Select(r => r.Key + "|" + r.Domain),
             });
 
@@ -252,37 +258,49 @@ public sealed class RunMachine
     void Progress(string phase, int done, int total, double meanMs) =>
         Console.Error.WriteLine("PROGRESS " + JsonSerializer.Serialize(new { model = _spec.Id, phase, done, total, meanMs = Math.Round(meanMs, 2) }));
 
+    static double Pct(double[] sorted, double q) => sorted.Length == 0 ? 0 : sorted[Math.Min(sorted.Length - 1, (int)(sorted.Length * q))];
+
     void Score()
     {
-        var s = _ms.OrderBy(x => x).ToArray();
-        _r.MeanMs = s.Average();
-        _r.P50Ms = s[s.Length / 2];
-        _r.P95Ms = s[(int)(s.Length * 0.95)];
-        _r.ItemsPerSec = 1000.0 / _r.MeanMs;
-
-        int ok = 0;
-        var byDom = new Dictionary<string, (int ok, int n)>();
+        // Head-level argmax accuracy for every item.
+        var hit = new bool[_items.Count];
         for (var i = 0; i < _items.Count; i++)
         {
             var lg = _logits[i];
             if (lg.Length < _items[i].N) throw new InvalidOperationException($"{_items[i].Id}: {lg.Length} logits for {_items[i].N} options");
             var arg = 0;
             for (var k = 1; k < _items[i].N; k++) if (lg[k] > lg[arg]) arg = k;
-            var hit = arg == _items[i].Gold ? 1 : 0;
-            ok += hit;
-            var (a, b) = byDom.GetValueOrDefault(_items[i].Domain);
-            byDom[_items[i].Domain] = (a + hit, b + 1);
+            hit[i] = arg == _items[i].Gold;
         }
-        _r.Accuracy = (double)ok / _items.Count;
-        _r.AccuracyByDomain = byDom.OrderBy(k => k.Key).ToDictionary(k => k.Key, k => (double)k.Value.ok / k.Value.n);
-        foreach (var g in _tests.GroupBy(t => t.Suite))
+
+        // Headline numbers stay on the original fast-decisions set (classification + automation, or "core" without policies) so they
+        // remain comparable with earlier runs; retrieval and tools are reported per suite.
+        bool Core(int i) => _suiteOf[i] is "classification" or "automation" or "core";
+        var coreIdx = Enumerable.Range(0, _items.Count).Where(Core).ToArray();
+        if (coreIdx.Length == 0) coreIdx = Enumerable.Range(0, _items.Count).ToArray();   // suite subset without fast-decisions: headline = everything run
+        var inHeadline = coreIdx.ToHashSet();
+        var coreMs = _msItem.Where(t => inHeadline.Contains(t.item)).Select(t => t.ms).OrderBy(x => x).ToArray();
+        _r.MeanMs = coreMs.Average();
+        _r.P50Ms = Pct(coreMs, 0.5);
+        _r.P95Ms = Pct(coreMs, 0.95);
+        _r.ItemsPerSec = 1000.0 / _r.MeanMs;
+        _r.Accuracy = (double)coreIdx.Count(i => hit[i]) / coreIdx.Length;
+        _r.AccuracyByDomain = coreIdx.GroupBy(i => _items[i].Domain).OrderBy(g => g.Key).ToDictionary(g => g.Key, g => (double)g.Count(i => hit[i]) / g.Count());
+
+        foreach (var g in Enumerable.Range(0, _items.Count).GroupBy(i => _suiteOf[i]))
+        {
+            var ms = _msItem.Where(t => _suiteOf[t.item] == g.Key).Select(t => t.ms).OrderBy(x => x).ToArray();
+            var tests = _tests.Where(t => t.Suite == g.Key).ToList();
             _r.Suites[g.Key] = new SuiteResult
             {
-                Tests = g.Count(),
-                Correct = g.Count(t => t.State == TS.Correct), WrongButSafe = g.Count(t => t.State == TS.WrongButSafe),
-                Overblocked = g.Count(t => t.State == TS.Overblocked), Unsafe = g.Count(t => t.State == TS.Unsafe),
-                Misclassified = g.Count(t => t.State == TS.Misclassified), Errored = g.Count(t => t.State == TS.Errored),
+                Heads = g.Count(), Accuracy = (double)g.Count(i => hit[i]) / g.Count(),
+                MeanMs = ms.Average(), P50Ms = Pct(ms, 0.5), P95Ms = Pct(ms, 0.95),
+                Tests = tests.Count,
+                Correct = tests.Count(t => t.State == TS.Correct), WrongButSafe = tests.Count(t => t.State == TS.WrongButSafe),
+                Overblocked = tests.Count(t => t.State == TS.Overblocked), Unsafe = tests.Count(t => t.State == TS.Unsafe),
+                Misclassified = tests.Count(t => t.State == TS.Misclassified), Errored = tests.Count(t => t.State == TS.Errored),
             };
+        }
         _r.PeakRssMb = Process.GetCurrentProcess().PeakWorkingSet64 / 1048576.0;
         _r.State = "Scored";
     }

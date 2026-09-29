@@ -8,7 +8,10 @@ using CedarDotNet.Values;
 
 namespace FindAJev.Bench;
 
-public sealed record Pack(string[] Actions, Dictionary<string, string> Heads);
+public sealed record Pack(string[] Actions, Dictionary<string, string> Heads, string? Suite = null, string[]? OptionAttrs = null)
+{
+    public string SuiteName => Suite ?? "automation";
+}
 
 public sealed record PolicyDecision(string Action, bool Allow, string[] Reasons, string? Error = null);
 
@@ -25,12 +28,30 @@ public sealed class PolicyEngine
     readonly Dictionary<string, string> _test = new();   // id -> text, per-test policies
     readonly Dictionary<string, string> _run = new();    // id -> text, run-lifecycle policies
     readonly Dictionary<string, PolicySet> _byDomain = new();
+    public PolicyEngine Reordered() { var r = WithTestPolicies(_test.Reverse().ToDictionary(kv => kv.Key, kv => kv.Value)); return r; }
     public Dictionary<string, Pack> Packs { get; }
     public IReadOnlyDictionary<string, string> TestPolicies => _test;
+    public int PolicyCountFor(string domain) => _byDomain[domain].StaticPolicies.Count;
     public IReadOnlyDictionary<string, string> RunPolicies => _run;
 
-    public PolicyEngine(string dir)
+    /// <summary>Effective policy parameters (params.json + overrides).</summary>
+    public IReadOnlyDictionary<string, long> Params { get; }
+    static readonly Regex ParamRx = new("\\{\\{(\\w+)\\}\\}", RegexOptions.Compiled);
+
+    public PolicyEngine(string dir, IReadOnlyDictionary<string, long>? overrides = null)
     {
+        var pp = new Dictionary<string, long>();
+        var pfile = Path.Combine(dir, "params.json");
+        if (File.Exists(pfile))
+            foreach (var kv in JsonNode.Parse(File.ReadAllText(pfile))!.AsObject().Where(kv => !kv.Key.StartsWith("_")))
+                pp[kv.Key] = kv.Value!.GetValue<long>();
+        foreach (var (k, v) in overrides ?? new Dictionary<string, long>())
+        {
+            if (!pp.ContainsKey(k)) throw new ArgumentException($"unknown policy parameter '{k}' (known: {string.Join(", ", pp.Keys)})");
+            pp[k] = v;
+        }
+        Params = pp;
+
         _schemaText = File.ReadAllText(Path.Combine(dir, "schema.cedarschema"));
         _schema = Schema.FromText(_schemaText);
         Packs = JsonSerializer.Deserialize<JsonObject>(File.ReadAllText(Path.Combine(dir, "packs.json")))!["packs"]!
@@ -39,7 +60,9 @@ public sealed class PolicyEngine
         foreach (var file in Directory.GetFiles(dir, "*.cedar").OrderBy(f => f))
         {
             var target = Path.GetFileName(file) == "run.cedar" ? _run : _test;
-            foreach (var text in CedarUtilities.LoadPolicySet(File.ReadAllText(file)))
+            var source = ParamRx.Replace(File.ReadAllText(file), m =>
+                pp.TryGetValue(m.Groups[1].Value, out var val) ? val.ToString() : throw new InvalidDataException($"{file}: unknown parameter {{{{{m.Groups[1].Value}}}}}"));
+            foreach (var text in CedarUtilities.LoadPolicySet(source))
             {
                 var m = IdRx.Match(text);
                 if (!m.Success) throw new InvalidDataException($"{file}: every policy needs an @id annotation: {text[..Math.Min(80, text.Length)]}");
@@ -48,6 +71,21 @@ public sealed class PolicyEngine
         }
         foreach (var d in Packs.Keys) _byDomain[d] = new PolicySet { StaticPolicies = ForDomain(d) };
     }
+
+    /// <summary>A copy of this engine with different per-test policy texts (id -> text); used by mutation testing.</summary>
+    public PolicyEngine WithTestPolicies(Dictionary<string, string> replacement)
+    {
+        var copy = (PolicyEngine)MemberwiseClone();
+        copy._test.Clear();
+        foreach (var kv in replacement) copy._test[kv.Key] = kv.Value;
+        copy._byDomain.Clear();
+        foreach (var d in Packs.Keys) copy._byDomain[d] = new PolicySet { StaticPolicies = copy.ForDomain(d) };
+        return copy;
+    }
+
+    /// <summary>Actions declared `in [AutoAct]` in the schema: the autonomous ones that guardrails target.</summary>
+    public HashSet<string> AutoActions() =>
+        Regex.Matches(_schemaText, @"action\s+(\w+)\s+in\s+\[AutoAct\]").Select(m => m.Groups[1].Value).ToHashSet();
 
     /// <summary>Policies relevant to a domain: those naming it, plus those naming no domain at all (cross-domain guardrails).</summary>
     Dictionary<string, string> ForDomain(string domain) =>
@@ -135,9 +173,9 @@ public sealed class PolicyEngine
         return Call(action, Runner, model, null, ctx, new PolicySet { StaticPolicies = _run });
     }
 
-    public static Dictionary<string, Value> Ctx(string domain, long minConfidence, IEnumerable<KeyValuePair<string, string>> attrs)
+    public static Dictionary<string, Value> Ctx(string domain, long minConfidence, long options, IEnumerable<KeyValuePair<string, string>> attrs)
     {
-        var d = new Dictionary<string, Value> { ["domain"] = domain, ["minConfidence"] = minConfidence };
+        var d = new Dictionary<string, Value> { ["domain"] = domain, ["minConfidence"] = minConfidence, ["options"] = options };
         foreach (var (k, v) in attrs) d[k] = v;
         return d;
     }

@@ -1,0 +1,808 @@
+[
+ {
+  "name": "no policies -> default deny",
+  "kind": "authorize",
+  "policies": [],
+  "request": {
+   "principal": "User::\"alice\"",
+   "action": "Action::\"view\"",
+   "resource": "Doc::\"d1\"",
+   "context": {}
+  },
+  "entities": [],
+  "expect": {
+   "decision": "deny",
+   "reasons": []
+  }
+ },
+ {
+  "name": "permit-all allows",
+  "kind": "authorize",
+  "policies": [
+   "permit(principal, action, resource);"
+  ],
+  "request": {
+   "principal": "User::\"alice\"",
+   "action": "Action::\"view\"",
+   "resource": "Doc::\"d1\"",
+   "context": {}
+  },
+  "entities": [],
+  "expect": {
+   "decision": "allow",
+   "reasons": [
+    "p0"
+   ]
+  }
+ },
+ {
+  "name": "forbid overrides permit",
+  "kind": "authorize",
+  "policies": [
+   "permit(principal, action, resource);",
+   "forbid(principal, action, resource);"
+  ],
+  "request": {
+   "principal": "User::\"alice\"",
+   "action": "Action::\"view\"",
+   "resource": "Doc::\"d1\"",
+   "context": {}
+  },
+  "entities": [],
+  "expect": {
+   "decision": "deny",
+   "reasons": [
+    "p1"
+   ]
+  }
+ },
+ {
+  "name": "several satisfied permits are all reported",
+  "kind": "authorize",
+  "policies": [
+   "permit(principal, action, resource);",
+   "permit(principal == User::\"alice\", action, resource);"
+  ],
+  "request": {
+   "principal": "User::\"alice\"",
+   "action": "Action::\"view\"",
+   "resource": "Doc::\"d1\"",
+   "context": {}
+  },
+  "entities": [],
+  "expect": {
+   "decision": "allow",
+   "reasons": [
+    "p0",
+    "p1"
+   ]
+  }
+ },
+ {
+  "name": "principal == matches",
+  "kind": "authorize",
+  "policies": [
+   "permit(principal == User::\"alice\", action, resource);"
+  ],
+  "request": {
+   "principal": "User::\"alice\"",
+   "action": "Action::\"view\"",
+   "resource": "Doc::\"d1\"",
+   "context": {}
+  },
+  "entities": [],
+  "expect": {
+   "decision": "allow"
+  }
+ },
+ {
+  "name": "principal == mismatch denies",
+  "kind": "authorize",
+  "policies": [
+   "permit(principal == User::\"bob\", action, resource);"
+  ],
+  "request": {
+   "principal": "User::\"alice\"",
+   "action": "Action::\"view\"",
+   "resource": "Doc::\"d1\"",
+   "context": {}
+  },
+  "entities": [],
+  "expect": {
+   "decision": "deny"
+  }
+ },
+ {
+  "name": "principal in group (direct parent)",
+  "kind": "authorize",
+  "policies": [
+   "permit(principal in Group::\"eng\", action, resource);"
+  ],
+  "request": {
+   "principal": "User::\"alice\"",
+   "action": "Action::\"view\"",
+   "resource": "Doc::\"d1\"",
+   "context": {}
+  },
+  "entities": [
+   {
+    "uid": "User::\"alice\"",
+    "parents": [
+     "Group::\"eng\""
+    ]
+   },
+   {
+    "uid": "Group::\"eng\""
+   }
+  ],
+  "expect": {
+   "decision": "allow"
+  }
+ },
+ {
+  "name": "principal in group (transitive)",
+  "kind": "authorize",
+  "policies": [
+   "permit(principal in Org::\"acme\", action, resource);"
+  ],
+  "request": {
+   "principal": "User::\"alice\"",
+   "action": "Action::\"view\"",
+   "resource": "Doc::\"d1\"",
+   "context": {}
+  },
+  "entities": [
+   {
+    "uid": "User::\"alice\"",
+    "parents": [
+     "Team::\"t1\""
+    ]
+   },
+   {
+    "uid": "Team::\"t1\"",
+    "parents": [
+     "Org::\"acme\""
+    ]
+   },
+   {
+    "uid": "Org::\"acme\""
+   }
+  ],
+  "expect": {
+   "decision": "allow"
+  }
+ },
+ {
+  "name": "not in group denies",
+  "kind": "authorize",
+  "policies": [
+   "permit(principal in Group::\"eng\", action, resource);"
+  ],
+  "request": {
+   "principal": "User::\"alice\"",
+   "action": "Action::\"view\"",
+   "resource": "Doc::\"d1\"",
+   "context": {}
+  },
+  "entities": [
+   {
+    "uid": "User::\"alice\""
+   },
+   {
+    "uid": "Group::\"eng\""
+   }
+  ],
+  "expect": {
+   "decision": "deny"
+  }
+ },
+ {
+  "name": "action in action group",
+  "kind": "authorize",
+  "policies": [
+   "permit(principal, action in Action::\"read\", resource);"
+  ],
+  "request": {
+   "principal": "User::\"alice\"",
+   "action": "Action::\"view\"",
+   "resource": "Doc::\"d1\"",
+   "context": {}
+  },
+  "entities": [
+   {
+    "uid": "Action::\"view\"",
+    "parents": [
+     "Action::\"read\""
+    ]
+   },
+   {
+    "uid": "Action::\"read\""
+   }
+  ],
+  "expect": {
+   "decision": "allow"
+  }
+ },
+ {
+  "name": "action == exact",
+  "kind": "authorize",
+  "policies": [
+   "permit(principal, action == Action::\"view\", resource);"
+  ],
+  "request": {
+   "principal": "User::\"alice\"",
+   "action": "Action::\"view\"",
+   "resource": "Doc::\"d1\"",
+   "context": {}
+  },
+  "entities": [],
+  "expect": {
+   "decision": "allow"
+  }
+ },
+ {
+  "name": "action set membership",
+  "kind": "authorize",
+  "policies": [
+   "permit(principal, action in [Action::\"view\", Action::\"edit\"], resource);"
+  ],
+  "request": {
+   "principal": "User::\"alice\"",
+   "action": "Action::\"view\"",
+   "resource": "Doc::\"d1\"",
+   "context": {}
+  },
+  "entities": [],
+  "expect": {
+   "decision": "allow"
+  }
+ },
+ {
+  "name": "resource is Doc",
+  "kind": "authorize",
+  "policies": [
+   "permit(principal, action, resource is Doc);"
+  ],
+  "request": {
+   "principal": "User::\"alice\"",
+   "action": "Action::\"view\"",
+   "resource": "Doc::\"d1\"",
+   "context": {}
+  },
+  "entities": [],
+  "expect": {
+   "decision": "allow"
+  }
+ },
+ {
+  "name": "resource is wrong type denies",
+  "kind": "authorize",
+  "policies": [
+   "permit(principal, action, resource is Folder);"
+  ],
+  "request": {
+   "principal": "User::\"alice\"",
+   "action": "Action::\"view\"",
+   "resource": "Doc::\"d1\"",
+   "context": {}
+  },
+  "entities": [],
+  "expect": {
+   "decision": "deny"
+  }
+ },
+ {
+  "name": "principal is User in Group",
+  "kind": "authorize",
+  "policies": [
+   "permit(principal is User in Group::\"eng\", action, resource);"
+  ],
+  "request": {
+   "principal": "User::\"alice\"",
+   "action": "Action::\"view\"",
+   "resource": "Doc::\"d1\"",
+   "context": {}
+  },
+  "entities": [
+   {
+    "uid": "User::\"alice\"",
+    "parents": [
+     "Group::\"eng\""
+    ]
+   },
+   {
+    "uid": "Group::\"eng\""
+   }
+  ],
+  "expect": {
+   "decision": "allow"
+  }
+ },
+ {
+  "name": "when on resource attribute",
+  "kind": "authorize",
+  "policies": [
+   "permit(principal, action, resource) when { resource.public == true };"
+  ],
+  "request": {
+   "principal": "User::\"alice\"",
+   "action": "Action::\"view\"",
+   "resource": "Doc::\"d1\"",
+   "context": {}
+  },
+  "entities": [
+   {
+    "uid": "Doc::\"d1\"",
+    "attrs": {
+     "public": true
+    }
+   }
+  ],
+  "expect": {
+   "decision": "allow"
+  }
+ },
+ {
+  "name": "when false denies",
+  "kind": "authorize",
+  "policies": [
+   "permit(principal, action, resource) when { resource.public == true };"
+  ],
+  "request": {
+   "principal": "User::\"alice\"",
+   "action": "Action::\"view\"",
+   "resource": "Doc::\"d1\"",
+   "context": {}
+  },
+  "entities": [
+   {
+    "uid": "Doc::\"d1\"",
+    "attrs": {
+     "public": false
+    }
+   }
+  ],
+  "expect": {
+   "decision": "deny"
+  }
+ },
+ {
+  "name": "unless inverts",
+  "kind": "authorize",
+  "policies": [
+   "permit(principal, action, resource) unless { resource.locked };"
+  ],
+  "request": {
+   "principal": "User::\"alice\"",
+   "action": "Action::\"view\"",
+   "resource": "Doc::\"d1\"",
+   "context": {}
+  },
+  "entities": [
+   {
+    "uid": "Doc::\"d1\"",
+    "attrs": {
+     "locked": false
+    }
+   }
+  ],
+  "expect": {
+   "decision": "allow"
+  }
+ },
+ {
+  "name": "unless true denies",
+  "kind": "authorize",
+  "policies": [
+   "permit(principal, action, resource) unless { resource.locked };"
+  ],
+  "request": {
+   "principal": "User::\"alice\"",
+   "action": "Action::\"view\"",
+   "resource": "Doc::\"d1\"",
+   "context": {}
+  },
+  "entities": [
+   {
+    "uid": "Doc::\"d1\"",
+    "attrs": {
+     "locked": true
+    }
+   }
+  ],
+  "expect": {
+   "decision": "deny"
+  }
+ },
+ {
+  "name": "has: attribute present",
+  "kind": "authorize",
+  "policies": [
+   "permit(principal, action, resource) when { resource has owner };"
+  ],
+  "request": {
+   "principal": "User::\"alice\"",
+   "action": "Action::\"view\"",
+   "resource": "Doc::\"d1\"",
+   "context": {}
+  },
+  "entities": [
+   {
+    "uid": "Doc::\"d1\"",
+    "attrs": {
+     "owner": "x"
+    }
+   }
+  ],
+  "expect": {
+   "decision": "allow"
+  }
+ },
+ {
+  "name": "has: attribute absent",
+  "kind": "authorize",
+  "policies": [
+   "permit(principal, action, resource) when { resource has owner };"
+  ],
+  "request": {
+   "principal": "User::\"alice\"",
+   "action": "Action::\"view\"",
+   "resource": "Doc::\"d1\"",
+   "context": {}
+  },
+  "entities": [
+   {
+    "uid": "Doc::\"d1\""
+   }
+  ],
+  "expect": {
+   "decision": "deny"
+  }
+ },
+ {
+  "name": "has guard prevents an error",
+  "kind": "authorize",
+  "policies": [
+   "permit(principal, action, resource) when { resource has owner && resource.owner == \"x\" };"
+  ],
+  "request": {
+   "principal": "User::\"alice\"",
+   "action": "Action::\"view\"",
+   "resource": "Doc::\"d1\"",
+   "context": {}
+  },
+  "entities": [
+   {
+    "uid": "Doc::\"d1\""
+   }
+  ],
+  "expect": {
+   "decision": "deny",
+   "errors": 0
+  }
+ },
+ {
+  "name": "like wildcard",
+  "kind": "authorize",
+  "policies": [
+   "permit(principal, action, resource) when { resource.name like \"report-*\" };"
+  ],
+  "request": {
+   "principal": "User::\"alice\"",
+   "action": "Action::\"view\"",
+   "resource": "Doc::\"d1\"",
+   "context": {}
+  },
+  "entities": [
+   {
+    "uid": "Doc::\"d1\"",
+    "attrs": {
+     "name": "report-2026"
+    }
+   }
+  ],
+  "expect": {
+   "decision": "allow"
+  }
+ },
+ {
+  "name": "like non-match",
+  "kind": "authorize",
+  "policies": [
+   "permit(principal, action, resource) when { resource.name like \"report-*\" };"
+  ],
+  "request": {
+   "principal": "User::\"alice\"",
+   "action": "Action::\"view\"",
+   "resource": "Doc::\"d1\"",
+   "context": {}
+  },
+  "entities": [
+   {
+    "uid": "Doc::\"d1\"",
+    "attrs": {
+     "name": "memo"
+    }
+   }
+  ],
+  "expect": {
+   "decision": "deny"
+  }
+ },
+ {
+  "name": "set contains",
+  "kind": "authorize",
+  "policies": [
+   "permit(principal, action, resource) when { resource.tags.contains(\"a\") };"
+  ],
+  "request": {
+   "principal": "User::\"alice\"",
+   "action": "Action::\"view\"",
+   "resource": "Doc::\"d1\"",
+   "context": {}
+  },
+  "entities": [
+   {
+    "uid": "Doc::\"d1\"",
+    "attrs": {
+     "tags": [
+      "a",
+      "b"
+     ]
+    }
+   }
+  ],
+  "expect": {
+   "decision": "allow"
+  }
+ },
+ {
+  "name": "set containsAll",
+  "kind": "authorize",
+  "policies": [
+   "permit(principal, action, resource) when { resource.tags.containsAll([\"a\", \"b\"]) };"
+  ],
+  "request": {
+   "principal": "User::\"alice\"",
+   "action": "Action::\"view\"",
+   "resource": "Doc::\"d1\"",
+   "context": {}
+  },
+  "entities": [
+   {
+    "uid": "Doc::\"d1\"",
+    "attrs": {
+     "tags": [
+      "a",
+      "b",
+      "c"
+     ]
+    }
+   }
+  ],
+  "expect": {
+   "decision": "allow"
+  }
+ },
+ {
+  "name": "set containsAny",
+  "kind": "authorize",
+  "policies": [
+   "permit(principal, action, resource) when { resource.tags.containsAny([\"z\", \"b\"]) };"
+  ],
+  "request": {
+   "principal": "User::\"alice\"",
+   "action": "Action::\"view\"",
+   "resource": "Doc::\"d1\"",
+   "context": {}
+  },
+  "entities": [
+   {
+    "uid": "Doc::\"d1\"",
+    "attrs": {
+     "tags": [
+      "a",
+      "b"
+     ]
+    }
+   }
+  ],
+  "expect": {
+   "decision": "allow"
+  }
+ },
+ {
+  "name": "set isEmpty",
+  "kind": "authorize",
+  "policies": [
+   "permit(principal, action, resource) when { resource.tags.isEmpty() };"
+  ],
+  "request": {
+   "principal": "User::\"alice\"",
+   "action": "Action::\"view\"",
+   "resource": "Doc::\"d1\"",
+   "context": {}
+  },
+  "entities": [
+   {
+    "uid": "Doc::\"d1\"",
+    "attrs": {
+     "tags": []
+    }
+   }
+  ],
+  "expect": {
+   "decision": "allow"
+  }
+ },
+ {
+  "name": "arithmetic + comparison",
+  "kind": "authorize",
+  "policies": [
+   "permit(principal, action, resource) when { context.n * 2 + 1 > 6 };"
+  ],
+  "request": {
+   "principal": "User::\"alice\"",
+   "action": "Action::\"view\"",
+   "resource": "Doc::\"d1\"",
+   "context": {
+    "n": 3
+   }
+  },
+  "entities": [],
+  "expect": {
+   "decision": "allow"
+  }
+ },
+ {
+  "name": "if-then-else",
+  "kind": "authorize",
+  "policies": [
+   "permit(principal, action, resource) when { if context.vip then true else context.n > 10 };"
+  ],
+  "request": {
+   "principal": "User::\"alice\"",
+   "action": "Action::\"view\"",
+   "resource": "Doc::\"d1\"",
+   "context": {
+    "vip": true,
+    "n": 1
+   }
+  },
+  "entities": [],
+  "expect": {
+   "decision": "allow"
+  }
+ },
+ {
+  "name": "string equality is case sensitive",
+  "kind": "authorize",
+  "policies": [
+   "permit(principal, action, resource) when { context.s == \"Yes\" };"
+  ],
+  "request": {
+   "principal": "User::\"alice\"",
+   "action": "Action::\"view\"",
+   "resource": "Doc::\"d1\"",
+   "context": {
+    "s": "yes"
+   }
+  },
+  "entities": [],
+  "expect": {
+   "decision": "deny"
+  }
+ },
+ {
+  "name": "entity-valued attribute equals principal (ReBAC owner)",
+  "kind": "authorize",
+  "policies": [
+   "permit(principal, action, resource) when { resource.owner == principal };"
+  ],
+  "request": {
+   "principal": "User::\"alice\"",
+   "action": "Action::\"view\"",
+   "resource": "Doc::\"d1\"",
+   "context": {}
+  },
+  "entities": [
+   {
+    "uid": "Doc::\"d1\"",
+    "attrs": {
+     "owner": {
+      "__entity": {
+       "type": "User",
+       "id": "alice"
+      }
+     }
+    }
+   }
+  ],
+  "expect": {
+   "decision": "allow"
+  }
+ },
+ {
+  "name": "nested record attribute",
+  "kind": "authorize",
+  "policies": [
+   "permit(principal, action, resource) when { context.user.dept == \"eng\" };"
+  ],
+  "request": {
+   "principal": "User::\"alice\"",
+   "action": "Action::\"view\"",
+   "resource": "Doc::\"d1\"",
+   "context": {
+    "user": {
+     "dept": "eng"
+    }
+   }
+  },
+  "entities": [],
+  "expect": {
+   "decision": "allow"
+  }
+ },
+ {
+  "name": "annotations do not change evaluation",
+  "kind": "authorize",
+  "policies": [
+   "@id(\"x\") @note(\"y\") permit(principal, action, resource);"
+  ],
+  "request": {
+   "principal": "User::\"alice\"",
+   "action": "Action::\"view\"",
+   "resource": "Doc::\"d1\"",
+   "context": {}
+  },
+  "entities": [],
+  "expect": {
+   "decision": "allow"
+  }
+ },
+ {
+  "name": "tags: hasTag / getTag",
+  "kind": "authorize",
+  "policies": [
+   "permit(principal, action, resource) when { resource.hasTag(\"env\") && resource.getTag(\"env\") == \"prod\" };"
+  ],
+  "request": {
+   "principal": "User::\"alice\"",
+   "action": "Action::\"view\"",
+   "resource": "Doc::\"d1\"",
+   "context": {}
+  },
+  "entities": [
+   {
+    "uid": "Doc::\"d1\"",
+    "tags": {
+     "env": "prod"
+    }
+   }
+  ],
+  "expect": {
+   "decision": "allow"
+  }
+ },
+ {
+  "name": "tags: missing tag is false",
+  "kind": "authorize",
+  "policies": [
+   "permit(principal, action, resource) when { resource.hasTag(\"env\") };"
+  ],
+  "request": {
+   "principal": "User::\"alice\"",
+   "action": "Action::\"view\"",
+   "resource": "Doc::\"d1\"",
+   "context": {}
+  },
+  "entities": [
+   {
+    "uid": "Doc::\"d1\""
+   }
+  ],
+  "expect": {
+   "decision": "deny"
+  }
+ }
+]

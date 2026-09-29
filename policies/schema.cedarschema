@@ -4,10 +4,11 @@ entity Item = { domain: String };
 entity Runner;
 entity Model = { license: String, sizeMb: Long, publisher: String };
 
-// Per-test context: one attribute per (domain, head) so packs never collide. minConfidence = lowest head confidence (0-100, uncalibrated softmax).
+// Per-test context: one attribute per (domain, head) so packs never collide. minConfidence = lowest head confidence (0-100, uncalibrated softmax); options = largest option count among the test's heads.
 type TestCtx = {
   domain: String,
   minConfidence: Long,
+  options: Long,
   bank_intent?: String,
   benefit_program?: String,
   benefit_status?: String,
@@ -24,7 +25,10 @@ type TestCtx = {
   ticket_pii?: String,
   ticket_queue?: String,
   ticket_urgency?: String,
-  travel_intent?: String
+  travel_intent?: String,
+  passage_pii?: String,
+  passage_source?: String,
+  tool_risk?: String
 };
 type RunCtx = { threads: Long, cpus: Long };
 
@@ -42,6 +46,13 @@ action EscalateHuman appliesTo { principal: [Session], resource: [Item], context
 action RedactPII appliesTo { principal: [Session], resource: [Item], context: TestCtx };
 action PageOnCall appliesTo { principal: [Session], resource: [Item], context: TestCtx };
 action RequireStepUp appliesTo { principal: [Session], resource: [Item], context: TestCtx };
+
+// Retrieval + Tools suites.
+action ServePassage in [AutoAct] appliesTo { principal: [Session], resource: [Item], context: TestCtx };
+action InvokeTool in [AutoAct] appliesTo { principal: [Session], resource: [Item], context: TestCtx };
+action RedactPassage appliesTo { principal: [Session], resource: [Item], context: TestCtx };
+action CitePassage appliesTo { principal: [Session], resource: [Item], context: TestCtx };
+action RequireApproval appliesTo { principal: [Session], resource: [Item], context: TestCtx };
 
 // Harness-level actions guarding the run lifecycle.
 action FetchModel appliesTo { principal: [Runner], resource: [Model], context: RunCtx };

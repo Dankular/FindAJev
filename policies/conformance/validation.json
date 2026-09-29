@@ -1,0 +1,175 @@
+[
+ {
+  "name": "well-typed policy validates",
+  "kind": "validate",
+  "policies": [
+   "permit(principal, action == Action::\"view\", resource) when { principal.level > 2 && resource.tags.contains(\"a\") };"
+  ],
+  "schema": "entity User { dept: String, level: Long };\nentity Doc { owner: User, tags: Set<String>, note?: String };\naction view appliesTo { principal: [User], resource: [Doc], context: { ip?: String } };\naction edit appliesTo { principal: [User], resource: [Doc] };",
+  "mode": "strict",
+  "expect": {
+   "valid": true
+  }
+ },
+ {
+  "name": "attribute typo is rejected (with a suggestion)",
+  "kind": "validate",
+  "policies": [
+   "permit(principal, action, resource) when { principal.levl > 2 };"
+  ],
+  "schema": "entity User { dept: String, level: Long };\nentity Doc { owner: User, tags: Set<String>, note?: String };\naction view appliesTo { principal: [User], resource: [Doc], context: { ip?: String } };\naction edit appliesTo { principal: [User], resource: [Doc] };",
+  "mode": "strict",
+  "expect": {
+   "valid": false,
+   "contains": "level"
+  }
+ },
+ {
+  "name": "comparing String to Long is a type error",
+  "kind": "validate",
+  "policies": [
+   "permit(principal, action, resource) when { principal.dept > 2 };"
+  ],
+  "schema": "entity User { dept: String, level: Long };\nentity Doc { owner: User, tags: Set<String>, note?: String };\naction view appliesTo { principal: [User], resource: [Doc], context: { ip?: String } };\naction edit appliesTo { principal: [User], resource: [Doc] };",
+  "mode": "strict",
+  "expect": {
+   "valid": false
+  }
+ },
+ {
+  "name": "optional attribute needs a has guard (strict)",
+  "kind": "validate",
+  "policies": [
+   "permit(principal, action, resource) when { resource.note == \"x\" };"
+  ],
+  "schema": "entity User { dept: String, level: Long };\nentity Doc { owner: User, tags: Set<String>, note?: String };\naction view appliesTo { principal: [User], resource: [Doc], context: { ip?: String } };\naction edit appliesTo { principal: [User], resource: [Doc] };",
+  "mode": "strict",
+  "expect": {
+   "valid": false,
+   "contains": "note"
+  }
+ },
+ {
+  "name": "has guard makes optional access valid",
+  "kind": "validate",
+  "policies": [
+   "permit(principal, action, resource) when { resource has note && resource.note == \"x\" };"
+  ],
+  "schema": "entity User { dept: String, level: Long };\nentity Doc { owner: User, tags: Set<String>, note?: String };\naction view appliesTo { principal: [User], resource: [Doc], context: { ip?: String } };\naction edit appliesTo { principal: [User], resource: [Doc] };",
+  "mode": "strict",
+  "expect": {
+   "valid": true
+  }
+ },
+ {
+  "name": "undefined entity type in scope",
+  "kind": "validate",
+  "policies": [
+   "permit(principal == Robot::\"r2\", action, resource);"
+  ],
+  "schema": "entity User { dept: String, level: Long };\nentity Doc { owner: User, tags: Set<String>, note?: String };\naction view appliesTo { principal: [User], resource: [Doc], context: { ip?: String } };\naction edit appliesTo { principal: [User], resource: [Doc] };",
+  "mode": "strict",
+  "expect": {
+   "valid": false,
+   "contains": "Robot"
+  }
+ },
+ {
+  "name": "unknown action",
+  "kind": "validate",
+  "policies": [
+   "permit(principal, action == Action::\"launch\", resource);"
+  ],
+  "schema": "entity User { dept: String, level: Long };\nentity Doc { owner: User, tags: Set<String>, note?: String };\naction view appliesTo { principal: [User], resource: [Doc], context: { ip?: String } };\naction edit appliesTo { principal: [User], resource: [Doc] };",
+  "mode": "strict",
+  "expect": {
+   "valid": false,
+   "contains": "launch"
+  }
+ },
+ {
+  "name": "attribute that does not exist on the entity",
+  "kind": "validate",
+  "policies": [
+   "permit(principal, action, resource) when { principal.email == \"x\" };"
+  ],
+  "schema": "entity User { dept: String, level: Long };\nentity Doc { owner: User, tags: Set<String>, note?: String };\naction view appliesTo { principal: [User], resource: [Doc], context: { ip?: String } };\naction edit appliesTo { principal: [User], resource: [Doc] };",
+  "mode": "strict",
+  "expect": {
+   "valid": false,
+   "contains": "email"
+  }
+ },
+ {
+  "name": "context attribute not in the schema",
+  "kind": "validate",
+  "policies": [
+   "permit(principal, action == Action::\"view\", resource) when { context.nope == 1 };"
+  ],
+  "schema": "entity User { dept: String, level: Long };\nentity Doc { owner: User, tags: Set<String>, note?: String };\naction view appliesTo { principal: [User], resource: [Doc], context: { ip?: String } };\naction edit appliesTo { principal: [User], resource: [Doc] };",
+  "mode": "strict",
+  "expect": {
+   "valid": false,
+   "contains": "nope"
+  }
+ },
+ {
+  "name": "optional context attribute needs has",
+  "kind": "validate",
+  "policies": [
+   "permit(principal, action == Action::\"view\", resource) when { context.ip == \"1.1.1.1\" };"
+  ],
+  "schema": "entity User { dept: String, level: Long };\nentity Doc { owner: User, tags: Set<String>, note?: String };\naction view appliesTo { principal: [User], resource: [Doc], context: { ip?: String } };\naction edit appliesTo { principal: [User], resource: [Doc] };",
+  "mode": "strict",
+  "expect": {
+   "valid": false
+  }
+ },
+ {
+  "name": "entity-typed attribute comparison is valid",
+  "kind": "validate",
+  "policies": [
+   "permit(principal, action, resource) when { resource.owner == principal };"
+  ],
+  "schema": "entity User { dept: String, level: Long };\nentity Doc { owner: User, tags: Set<String>, note?: String };\naction view appliesTo { principal: [User], resource: [Doc], context: { ip?: String } };\naction edit appliesTo { principal: [User], resource: [Doc] };",
+  "mode": "strict",
+  "expect": {
+   "valid": true
+  }
+ },
+ {
+  "name": "set method on a non-set",
+  "kind": "validate",
+  "policies": [
+   "permit(principal, action, resource) when { principal.dept.contains(\"a\") };"
+  ],
+  "schema": "entity User { dept: String, level: Long };\nentity Doc { owner: User, tags: Set<String>, note?: String };\naction view appliesTo { principal: [User], resource: [Doc], context: { ip?: String } };\naction edit appliesTo { principal: [User], resource: [Doc] };",
+  "mode": "strict",
+  "expect": {
+   "valid": false
+  }
+ },
+ {
+  "name": "scope that no request can satisfy is flagged as impossible (a warning, not an error)",
+  "kind": "validate",
+  "policies": [
+   "permit(principal is Doc, action == Action::\"view\", resource);"
+  ],
+  "schema": "entity User { dept: String, level: Long };\nentity Doc { owner: User, tags: Set<String>, note?: String };\naction view appliesTo { principal: [User], resource: [Doc], context: { ip?: String } };\naction edit appliesTo { principal: [User], resource: [Doc] };",
+  "mode": "strict",
+  "expect": {
+   "valid": true,
+   "warning": "impossible"
+  }
+ },
+ {
+  "name": "validation of an empty policy set is fine",
+  "kind": "validate",
+  "policies": [],
+  "schema": "entity User { dept: String, level: Long };\nentity Doc { owner: User, tags: Set<String>, note?: String };\naction view appliesTo { principal: [User], resource: [Doc], context: { ip?: String } };\naction edit appliesTo { principal: [User], resource: [Doc] };",
+  "mode": "strict",
+  "expect": {
+   "valid": true
+  }
+ }
+]

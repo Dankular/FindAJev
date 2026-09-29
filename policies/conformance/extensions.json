@@ -1,0 +1,281 @@
+[
+ {
+  "name": "ip: address in CIDR range",
+  "kind": "authorize",
+  "policies": [
+   "permit(principal, action, resource) when { context.ip.isInRange(ip(\"10.0.0.0/8\")) };"
+  ],
+  "request": {
+   "principal": "User::\"alice\"",
+   "action": "Action::\"view\"",
+   "resource": "Doc::\"d1\"",
+   "context": {
+    "ip": {
+     "__extn": {
+      "fn": "ip",
+      "arg": "10.1.2.3"
+     }
+    }
+   }
+  },
+  "entities": [],
+  "expect": {
+   "decision": "allow"
+  }
+ },
+ {
+  "name": "ip: address outside range",
+  "kind": "authorize",
+  "policies": [
+   "permit(principal, action, resource) when { context.ip.isInRange(ip(\"10.0.0.0/8\")) };"
+  ],
+  "request": {
+   "principal": "User::\"alice\"",
+   "action": "Action::\"view\"",
+   "resource": "Doc::\"d1\"",
+   "context": {
+    "ip": {
+     "__extn": {
+      "fn": "ip",
+      "arg": "192.168.1.1"
+     }
+    }
+   }
+  },
+  "entities": [],
+  "expect": {
+   "decision": "deny"
+  }
+ },
+ {
+  "name": "ip: isLoopback",
+  "kind": "authorize",
+  "policies": [
+   "permit(principal, action, resource) when { context.ip.isLoopback() };"
+  ],
+  "request": {
+   "principal": "User::\"alice\"",
+   "action": "Action::\"view\"",
+   "resource": "Doc::\"d1\"",
+   "context": {
+    "ip": {
+     "__extn": {
+      "fn": "ip",
+      "arg": "127.0.0.1"
+     }
+    }
+   }
+  },
+  "entities": [],
+  "expect": {
+   "decision": "allow"
+  }
+ },
+ {
+  "name": "ip: isIpv6",
+  "kind": "authorize",
+  "policies": [
+   "permit(principal, action, resource) when { context.ip.isIpv6() };"
+  ],
+  "request": {
+   "principal": "User::\"alice\"",
+   "action": "Action::\"view\"",
+   "resource": "Doc::\"d1\"",
+   "context": {
+    "ip": {
+     "__extn": {
+      "fn": "ip",
+      "arg": "::1"
+     }
+    }
+   }
+  },
+  "entities": [],
+  "expect": {
+   "decision": "allow"
+  }
+ },
+ {
+  "name": "ip: isMulticast",
+  "kind": "authorize",
+  "policies": [
+   "permit(principal, action, resource) when { context.ip.isMulticast() };"
+  ],
+  "request": {
+   "principal": "User::\"alice\"",
+   "action": "Action::\"view\"",
+   "resource": "Doc::\"d1\"",
+   "context": {
+    "ip": {
+     "__extn": {
+      "fn": "ip",
+      "arg": "224.0.0.1"
+     }
+    }
+   }
+  },
+  "entities": [],
+  "expect": {
+   "decision": "allow"
+  }
+ },
+ {
+  "name": "decimal: lessThan",
+  "kind": "authorize",
+  "policies": [
+   "permit(principal, action, resource) when { context.risk.lessThan(decimal(\"0.5\")) };"
+  ],
+  "request": {
+   "principal": "User::\"alice\"",
+   "action": "Action::\"view\"",
+   "resource": "Doc::\"d1\"",
+   "context": {
+    "risk": {
+     "__extn": {
+      "fn": "decimal",
+      "arg": "0.25"
+     }
+    }
+   }
+  },
+  "entities": [],
+  "expect": {
+   "decision": "allow"
+  }
+ },
+ {
+  "name": "decimal: greaterThanOrEqual boundary",
+  "kind": "authorize",
+  "policies": [
+   "permit(principal, action, resource) when { context.risk.greaterThanOrEqual(decimal(\"0.5\")) };"
+  ],
+  "request": {
+   "principal": "User::\"alice\"",
+   "action": "Action::\"view\"",
+   "resource": "Doc::\"d1\"",
+   "context": {
+    "risk": {
+     "__extn": {
+      "fn": "decimal",
+      "arg": "0.5"
+     }
+    }
+   }
+  },
+  "entities": [],
+  "expect": {
+   "decision": "allow"
+  }
+ },
+ {
+  "name": "decimal: precision beyond 4 places rejected",
+  "kind": "authorize",
+  "policies": [
+   "permit(principal, action, resource) when { decimal(\"0.12345\") == decimal(\"0.1234\") };"
+  ],
+  "request": {
+   "principal": "User::\"alice\"",
+   "action": "Action::\"view\"",
+   "resource": "Doc::\"d1\"",
+   "context": {}
+  },
+  "entities": [],
+  "expect": {
+   "decision": "deny",
+   "errors": 1
+  }
+ },
+ {
+  "name": "datetime: literal comparison",
+  "kind": "authorize",
+  "policies": [
+   "permit(principal, action, resource) when { datetime(\"2026-09-29T00:00:00Z\") < datetime(\"2026-10-01T00:00:00Z\") };"
+  ],
+  "request": {
+   "principal": "User::\"alice\"",
+   "action": "Action::\"view\"",
+   "resource": "Doc::\"d1\"",
+   "context": {}
+  },
+  "entities": [],
+  "expect": {
+   "decision": "allow"
+  }
+ },
+ {
+  "name": "datetime: context timestamp inside window",
+  "kind": "authorize",
+  "policies": [
+   "permit(principal, action, resource) when { context.now > datetime(\"2026-01-01T00:00:00Z\") && context.now < datetime(\"2027-01-01T00:00:00Z\") };"
+  ],
+  "request": {
+   "principal": "User::\"alice\"",
+   "action": "Action::\"view\"",
+   "resource": "Doc::\"d1\"",
+   "context": {
+    "now": {
+     "__extn": {
+      "fn": "datetime",
+      "arg": "2026-06-15T12:00:00Z"
+     }
+    }
+   }
+  },
+  "entities": [],
+  "expect": {
+   "decision": "allow"
+  }
+ },
+ {
+  "name": "datetime: offset by duration",
+  "kind": "authorize",
+  "policies": [
+   "permit(principal, action, resource) when { datetime(\"2026-01-01T00:00:00Z\").offset(duration(\"1d\")) == datetime(\"2026-01-02T00:00:00Z\") };"
+  ],
+  "request": {
+   "principal": "User::\"alice\"",
+   "action": "Action::\"view\"",
+   "resource": "Doc::\"d1\"",
+   "context": {}
+  },
+  "entities": [],
+  "expect": {
+   "decision": "allow"
+  }
+ },
+ {
+  "name": "duration: comparison",
+  "kind": "authorize",
+  "policies": [
+   "permit(principal, action, resource) when { duration(\"90m\") > duration(\"1h\") };"
+  ],
+  "request": {
+   "principal": "User::\"alice\"",
+   "action": "Action::\"view\"",
+   "resource": "Doc::\"d1\"",
+   "context": {}
+  },
+  "entities": [],
+  "expect": {
+   "decision": "allow"
+  }
+ },
+ {
+  "name": "invalid ip literal is an error",
+  "kind": "authorize",
+  "policies": [
+   "permit(principal, action, resource) when { ip(\"999.1.1.1\").isLoopback() };"
+  ],
+  "request": {
+   "principal": "User::\"alice\"",
+   "action": "Action::\"view\"",
+   "resource": "Doc::\"d1\"",
+   "context": {}
+  },
+  "entities": [],
+  "expect": {
+   "decision": "deny",
+   "errors": 1
+  }
+ }
+]

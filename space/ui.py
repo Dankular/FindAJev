@@ -5,6 +5,7 @@ no custom JavaScript to keep in sync. The graph itself is drawn from the machine
 """
 import io, json
 from html import escape
+from pathlib import Path
 
 import gradio as gr
 import numpy as np
@@ -84,6 +85,96 @@ def graph_svg(graph, counts, edges):
     return "".join(out)
 
 
+def dataset_html(v, registry):
+    """One card per registered dataset with live progress; the dataset being processed right now is highlighted.
+    A test's suite comes from its domain's policy pack (packDomains) or is 'classification'; the registry entry whose `provides`
+    lists that suite is its dataset. Tests run in file order (suite by suite), so the active dataset is the one holding the furthest
+    started test."""
+    plan, states = v["plan"], v["states"]
+    if not plan:
+        return f'<div style="color:{MUT}">No run yet.</div>'
+    packs = plan.get("packDomains", {})
+    by_suite = {sn: e for e in registry for sn in e["provides"]}
+    ds_of = []
+    for k in plan["keys"]:
+        dom = k.split("|")[1]
+        suite = packs.get(dom) if isinstance(packs.get(dom), str) else ("automation" if dom in packs else "classification")
+        ds_of.append(by_suite.get(suite, {}).get("id", "?"))
+    info = {e["id"]: e for e in registry}
+    tot, done = {}, {}
+    for i, d in enumerate(ds_of):
+        tot[d] = tot.get(d, 0) + 1
+        if states[i] not in (0, 1, 2):        # not Queued / Inferring / Enforcing
+            done[d] = done.get(d, 0) + 1
+    started = [i for i in range(len(states)) if states[i] != 0]
+    cur = ds_of[max(started)] if started else ds_of[0]
+    measuring = v["runState"] == "Measured"        # the run machine's state while tests are being processed
+    cards = []
+    for e in registry:
+        name = e["id"]
+        if name not in tot:
+            continue
+        n, dn = tot[name], done.get(name, 0)
+        is_active = measuring and name == cur
+        state = "processing now" if is_active else ("done" if dn == n else "waiting")
+        border = "#4f8cff" if is_active else "var(--border-color-primary)"
+        glow = "box-shadow:0 0 0 3px #4f8cff55;" if is_active else ""
+        badge = {"processing now": "background:#4f8cff;color:#fff", "done": "background:#34d399;color:#fff", "waiting": f"border:1px solid {MUT};color:{MUT}"}[state]
+        cards.append(
+            f'<div style="flex:1;min-width:250px;border:2px solid {border};{glow}border-radius:10px;padding:10px 12px;opacity:{1 if is_active or dn == n else .6}">'
+            f'<div style="display:flex;justify-content:space-between;align-items:center"><b>{escape(e["title"])}</b>'
+            f'<span style="padding:1px 8px;border-radius:99px;font-size:12px;{badge}">{state}</span></div>'
+            f'<div style="color:{MUT};font-size:12px;margin:3px 0">{escape(e.get("what", ""))}</div>'
+            f'<div style="font-size:12px"><a href="https://huggingface.co/datasets/{e.get("repo", "")}" target="_blank">{escape(e.get("repo", ""))}</a> · '
+            f'suites: <b>{", ".join(e["provides"])}</b> · {escape(e.get("license", ""))}</div>'
+            f'<div style="height:6px;background:{MUT}33;border-radius:99px;overflow:hidden;margin:6px 0 2px"><div style="height:100%;width:{100 * dn / n:.0f}%;background:{"#4f8cff" if is_active else "#34d399"}"></div></div>'
+            f'<div style="font-size:12px;color:{MUT}">{dn}/{n} tests</div></div>')
+    head = (f'<div style="margin:0 0 8px;font-size:15px">Now processing: <b>{escape(info[cur]["title"])}</b> '
+            f'<span style="color:{MUT}">({", ".join(info[cur]["provides"])})</span></div>') if measuring and cur in info else ""
+    return head + f'<div style="display:flex;flex-wrap:wrap;gap:10px">{"".join(cards)}</div>'
+
+
+def checks_html(listing, results):
+    """Cedar checks: status, summary, findings and the check-specific tables."""
+    if not listing:
+        return f'<div style="color:{MUT}">Check list unavailable.</div>'
+    out = []
+    for c in listing:
+        r = results.get(c["id"])
+        if r is None:
+            badge, col = "not run", MUT
+        elif r["passed"]:
+            badge, col = ("PASS" if c["hard"] else "done"), "#34d399"
+        else:
+            badge, col = "FAIL", "#f87171"
+        body = ""
+        if r:
+            d = r.get("details")
+            if c["id"] == "conformance" and d:
+                body += "<table>" + "".join(f'<tr><td>{escape(x["category"])}</td><td>{x["pass"]}/{x["total"]}</td></tr>' for x in d) + "</table>"
+            if c["id"] == "properties" and d:
+                body += "<table><tr><th>property</th><th>checks</th><th>violations</th></tr>" + "".join(
+                    f'<tr><td>{escape(x["property"])}</td><td>{x["checkedCount"]}</td><td style="color:{"#f87171" if x["violations"] else "inherit"}">{x["violations"]}</td></tr>' for x in d["properties"]) + "</table>"
+            if c["id"] == "bench" and d:
+                body += "<table><tr><th>domain</th><th>policies</th><th>calls</th><th>p50 ms</th><th>p95 ms</th></tr>" + "".join(
+                    f'<tr><td>{escape(x["domain"])}</td><td>{x["policies"]}</td><td>{x["calls"]}</td><td>{x["p50Ms"]}</td><td>{x["p95Ms"]}</td></tr>' for x in d) + "</table>"
+            if c["id"] == "noise-sweep" and d:
+                body += ("<table><tr><th>domain</th><th>suite</th>" + "".join(f"<th>{int(x['rate'] * 100)}% noise: unsafe / overblocked</th>" for x in d[0]["sweep"]) + "</tr>" +
+                         "".join(f'<tr><td>{escape(t["domain"])}</td><td>{t["suite"]}</td>' + "".join(f'<td>{x["unsafePct"]}% / {x["overblockedPct"]}%</td>' for x in t["sweep"]) + "</tr>" for t in d) + "</table>")
+            if c["id"] == "gold-coverage" and d:
+                body += "<details><summary>domain / action outcomes on gold labels</summary><table><tr><th>pair</th><th>allow</th><th>deny</th></tr>" + "".join(
+                    f'<tr><td>{escape(x["pair"])}</td><td>{x["allow"]}</td><td>{x["deny"]}</td></tr>' for x in d) + "</table></details>"
+            if r["findings"]:
+                body += "<div style='margin-top:6px'><b>findings</b><ul>" + "".join(f"<li><code>{escape(f)}</code></li>" for f in r["findings"][:15]) + "</ul></div>"
+        out.append(
+            f'<div style="border:1px solid {MUT}55;border-radius:10px;padding:10px 12px;margin-bottom:10px">'
+            f'<div style="display:flex;justify-content:space-between"><b>{escape(c["title"])}</b>'
+            f'<span style="padding:1px 9px;border-radius:99px;font-size:12px;background:{col};color:#fff">{badge}{" · gate" if c["hard"] else ""}</span></div>'
+            f'<div style="color:{MUT};font-size:12px">{escape(c["description"])}</div>'
+            + (f'<div style="margin-top:4px">{escape(r["summary"])} <span style="color:{MUT}">({r["seconds"]}s)</span></div>' if r else "") + body + "</div>")
+    return "".join(out)
+
+
 def status_html(v, job):
     rs = v["runState"] or "Pending"; i = CRUMBS.index(rs) if rs in CRUMBS else -1
     chips = []
@@ -159,11 +250,18 @@ def domain_rows(v):
         d = k.split("|")[1]
         row = doms.setdefault(d, [0] * len(STATES))
         row[states[i]] += 1
-    return [[d, "automation" if d in packs else "classification", *doms[d]] for d in sorted(doms)]
+    return [[d, packs.get(d) if isinstance(packs.get(d), str) else ("automation" if d in packs else "classification"), *doms[d]] for d in sorted(doms)]
 
 
 def build_ui(srv):
     """Build the Blocks app against the server module `srv` (LIVE, jobs, start_job, ranking...)."""
+    registry = srv.suite_registry()
+    defaults = srv.policy_params()
+    try:
+        listing = srv.checks_endpoint()["checks"]
+    except HTTPException:
+        listing = []
+
     def latest_job():
         return list(srv._jobs.values())[-1] if srv._jobs else None
 
@@ -174,8 +272,8 @@ def build_ui(srv):
         counts = v["counts"]
         img = grid_image(v["states"], v["plan"]["tests"]) if v["plan"] else None
         g = v["graphs"].get("test")
-        return (status_html(v, snap), graph_svg(g, counts, v["edges"]), legend_html(counts), img,
-                policy_rows(v["policyHits"]), feed_rows(v["recent"]), domain_rows(v))
+        return (status_html(v, snap), dataset_html(v, registry), graph_svg(g, counts, v["edges"]), legend_html(counts), img,
+                policy_rows(v["policyHits"]), feed_rows(v["recent"]), domain_rows(v), checks_html(listing, srv.CHECKS["results"]))
 
     def inspect(i):
         try:
@@ -191,16 +289,24 @@ def build_ui(srv):
         i = int(y // (CELL + GAP)) * COLS + int(x // (CELL + GAP))
         return i, inspect(i)
 
-    def start(model, all_models, skip_done, threads, limit, key):
+    def start(model, all_models, skip_done, threads, limit, key, suites, *pvals):
+        need = srv.os.environ.get("API_KEY")
+        if need and key != need:
+            return "API key required (Space secret API_KEY)."
+        overrides = {k: int(v) for k, v in zip(defaults, pvals) if v is not None and int(v) != defaults[k]}
+        try:
+            models = list(srv.REGISTRY) if all_models else [model]
+            r = srv.start_runs(models, int(threads), int(limit), 20, bool(skip_done), list(suites or []), overrides)
+            return f"started: {json.dumps(r)}"
+        except HTTPException as e:
+            return f"not started: {e.detail}"
+
+    def start_checks(selected, key):
         need = srv.os.environ.get("API_KEY")
         if need and key != need:
             return "API key required (Space secret API_KEY)."
         try:
-            if all_models:
-                r = srv.run_all(threads=int(threads), limit=int(limit), warmup=20, skip_done=bool(skip_done))
-            else:
-                r = srv.run(srv.RunRequest(model=model, threads=int(threads), limit=int(limit)))
-            return f"started: {json.dumps(r)}"
+            return f"started: {json.dumps(srv.run_checks_endpoint(srv.CheckRequest(checks=list(selected or []) or None)))}"
         except HTTPException as e:
             return f"not started: {e.detail}"
 
@@ -217,6 +323,7 @@ def build_ui(srv):
         with gr.Tabs():
             with gr.Tab("Live"):
                 status = gr.HTML()
+                datasets = gr.HTML()
                 graph = gr.HTML()
                 legend = gr.HTML()
                 with gr.Row():
@@ -233,22 +340,36 @@ def build_ui(srv):
             with gr.Tab("Ranking"):
                 rank = gr.Markdown()
                 gr.Button("Refresh").click(ranking, outputs=rank)
+            with gr.Tab("Cedar checks"):
+                gr.Markdown("Tests of the Cedar policies and of Cedar itself — independent of any model. **Gate** checks run automatically before every "
+                            "benchmark job and must pass. They use CPU, so they share the single job slot with benchmark runs.")
+                with gr.Row():
+                    check_pick = gr.CheckboxGroup([(c["title"], c["id"]) for c in listing], value=[c["id"] for c in listing], label="checks (discovered from the harness)")
+                    check_key = gr.Textbox(label="API key", type="password")
+                run_checks_btn = gr.Button("Run selected checks", variant="primary")
+                check_out = gr.Textbox(label="result", interactive=False)
+                checks_view = gr.HTML()
+                run_checks_btn.click(start_checks, [check_pick, check_key], check_out)
             with gr.Tab("Run"):
                 gr.Markdown(f"Runs are sequential (one at a time) on **{srv.CPUS} CPU(s)**. Models: {', '.join(srv.REGISTRY)}.")
                 with gr.Row():
                     model = gr.Dropdown(list(srv.REGISTRY), value=list(srv.REGISTRY)[0], label="model")
                     threads = gr.Number(value=srv.CPUS, precision=0, label="threads")
                     limit = gr.Number(value=0, precision=0, label="limit (0 = all)")
+                suite_pick = gr.CheckboxGroup([(f'{e["title"]} — {", ".join(e["provides"])}', e["id"]) for e in registry],
+                                              value=[e["id"] for e in registry], label="suites (from suites.json)")
+                with gr.Accordion("Cedar policy parameters (defaults from policies/params.json; a changed value gets its own ranking)", open=False):
+                    pnums = [gr.Number(value=v, precision=0, label=k) for k, v in defaults.items()]
                 with gr.Row():
                     allm = gr.Checkbox(label="run every model")
                     skip = gr.Checkbox(label="skip models that already have a result", value=True)
                     key = gr.Textbox(label="API key", type="password")
                 go = gr.Button("Start", variant="primary")
                 out = gr.Textbox(label="result", interactive=False)
-                go.click(start, [model, allm, skip, threads, limit, key], out)
+                go.click(start, [model, allm, skip, threads, limit, key, suite_pick, *pnums], out)
 
         timer = gr.Timer(0.5)
-        timer.tick(tick, outputs=[status, graph, legend, grid, pol, feed, dom])
+        timer.tick(tick, outputs=[status, datasets, graph, legend, grid, pol, feed, dom, checks_view])
         grid.select(on_select, outputs=[idx, detail])
         btn.click(inspect, idx, detail)
         demo.load(ranking, outputs=rank)

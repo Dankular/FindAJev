@@ -1,5 +1,5 @@
 {
-  "_doc": "domain -> Cedar actions to authorize per test, and dataset head -> Cedar context attribute. Domains not listed are accuracy-only (Misclassified when wrong).",
+  "_doc": "domain -> Cedar actions to authorize per test, and dataset head -> Cedar context attribute. Domains not listed are accuracy-only (Misclassified when wrong). `suite` names the suite; `optionAttrs` are per-option attributes carried in the encoded data (the chosen option's value becomes the Cedar context attribute).",
   "packs": {
     "email_triage": {
       "actions": [
@@ -12,7 +12,8 @@
         "category": "email_category",
         "action": "email_action",
         "needs_reply": "email_needs_reply"
-      }
+      },
+      "suite": "automation"
     },
     "ticket_route": {
       "actions": [
@@ -25,7 +26,8 @@
         "queue": "ticket_queue",
         "urgency": "ticket_urgency",
         "contains_pii": "ticket_pii"
-      }
+      },
+      "suite": "automation"
     },
     "clinic_request": {
       "actions": [
@@ -35,7 +37,8 @@
       "heads": {
         "request": "clinic_request",
         "urgent": "clinic_urgent"
-      }
+      },
+      "suite": "automation"
     },
     "agent_handoff": {
       "actions": [
@@ -44,7 +47,8 @@
       ],
       "heads": {
         "should_handoff": "handoff"
-      }
+      },
+      "suite": "automation"
     },
     "banking_intent": {
       "actions": [
@@ -54,7 +58,8 @@
       ],
       "heads": {
         "intent": "bank_intent"
-      }
+      },
+      "suite": "automation"
     },
     "benefits_request": {
       "actions": [
@@ -63,7 +68,8 @@
       "heads": {
         "program": "benefit_program",
         "asking_status": "benefit_status"
-      }
+      },
+      "suite": "automation"
     },
     "support_intent": {
       "actions": [
@@ -72,7 +78,8 @@
       ],
       "heads": {
         "intent": "support_intent"
-      }
+      },
+      "suite": "automation"
     },
     "travel_request": {
       "actions": [
@@ -81,7 +88,8 @@
       ],
       "heads": {
         "intent": "travel_intent"
-      }
+      },
+      "suite": "automation"
     },
     "review_sentiment": {
       "actions": [
@@ -90,7 +98,8 @@
       ],
       "heads": {
         "sentiment": "review_sentiment"
-      }
+      },
+      "suite": "automation"
     },
     "restaurant_review": {
       "actions": [
@@ -99,7 +108,8 @@
       ],
       "heads": {
         "sentiment": "review_sentiment"
-      }
+      },
+      "suite": "automation"
     },
     "product_feedback": {
       "actions": [
@@ -108,7 +118,33 @@
       ],
       "heads": {
         "feedback_type": "feedback_type"
-      }
+      },
+      "suite": "automation"
+    },
+    "retrieval": {
+      "suite": "retrieval",
+      "actions": [
+        "ServePassage",
+        "RedactPassage",
+        "CitePassage"
+      ],
+      "heads": {},
+      "optionAttrs": [
+        "passage_pii",
+        "passage_source"
+      ]
+    },
+    "tools": {
+      "suite": "tools",
+      "actions": [
+        "InvokeTool",
+        "RequireApproval",
+        "EscalateHuman"
+      ],
+      "heads": {},
+      "optionAttrs": [
+        "tool_risk"
+      ]
     }
   }
 }

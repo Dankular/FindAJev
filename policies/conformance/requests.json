@@ -1,0 +1,126 @@
+[
+ {
+  "name": "valid request passes validation",
+  "kind": "authorize",
+  "policies": [
+   "permit(principal, action, resource);"
+  ],
+  "request": {
+   "principal": "User::\"alice\"",
+   "action": "Action::\"view\"",
+   "resource": "Doc::\"d1\"",
+   "context": {
+    "n": 1
+   }
+  },
+  "entities": [],
+  "expect": {
+   "decision": "allow"
+  },
+  "schema": "entity User; entity Doc; action view appliesTo { principal: [User], resource: [Doc], context: { n: Long } };",
+  "validateRequest": true
+ },
+ {
+  "name": "context of the wrong type fails validation",
+  "kind": "authorize",
+  "policies": [
+   "permit(principal, action, resource);"
+  ],
+  "request": {
+   "principal": "User::\"alice\"",
+   "action": "Action::\"view\"",
+   "resource": "Doc::\"d1\"",
+   "context": {
+    "n": "one"
+   }
+  },
+  "entities": [],
+  "expect": {
+   "failure": true
+  },
+  "schema": "entity User; entity Doc; action view appliesTo { principal: [User], resource: [Doc], context: { n: Long } };",
+  "validateRequest": true
+ },
+ {
+  "name": "missing required context attribute fails validation",
+  "kind": "authorize",
+  "policies": [
+   "permit(principal, action, resource);"
+  ],
+  "request": {
+   "principal": "User::\"alice\"",
+   "action": "Action::\"view\"",
+   "resource": "Doc::\"d1\"",
+   "context": {}
+  },
+  "entities": [],
+  "expect": {
+   "failure": true
+  },
+  "schema": "entity User; entity Doc; action view appliesTo { principal: [User], resource: [Doc], context: { n: Long } };",
+  "validateRequest": true
+ },
+ {
+  "name": "principal type not allowed by the action fails validation",
+  "kind": "authorize",
+  "policies": [
+   "permit(principal, action, resource);"
+  ],
+  "request": {
+   "principal": "Robot::\"r2\"",
+   "action": "Action::\"view\"",
+   "resource": "Doc::\"d1\"",
+   "context": {
+    "n": 1
+   }
+  },
+  "entities": [],
+  "expect": {
+   "failure": true
+  },
+  "schema": "entity User; entity Doc; action view appliesTo { principal: [User], resource: [Doc], context: { n: Long } };",
+  "validateRequest": true
+ },
+ {
+  "name": "unknown action fails validation",
+  "kind": "authorize",
+  "policies": [
+   "permit(principal, action, resource);"
+  ],
+  "request": {
+   "principal": "User::\"alice\"",
+   "action": "Action::\"launch\"",
+   "resource": "Doc::\"d1\"",
+   "context": {
+    "n": 1
+   }
+  },
+  "entities": [],
+  "expect": {
+   "failure": true
+  },
+  "schema": "entity User; entity Doc; action view appliesTo { principal: [User], resource: [Doc], context: { n: Long } };",
+  "validateRequest": true
+ },
+ {
+  "name": "the same bad request passes when validation is off",
+  "kind": "authorize",
+  "policies": [
+   "permit(principal, action, resource);"
+  ],
+  "request": {
+   "principal": "User::\"alice\"",
+   "action": "Action::\"view\"",
+   "resource": "Doc::\"d1\"",
+   "context": {
+    "n": "one"
+   }
+  },
+  "entities": [],
+  "expect": {
+   "decision": "allow"
+  },
+  "schema": "entity User; entity Doc; action view appliesTo { principal: [User], resource: [Doc], context: { n: Long } };",
+  "validateRequest": false
+ }
+]

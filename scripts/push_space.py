@@ -16,7 +16,7 @@ with tempfile.TemporaryDirectory() as d:
     for sub in ("src/CedarDotNet", "src/CedarDotNetFfi"):
         shutil.copytree(cd / sub, d / "third_party/CedarDotNet" / sub, ignore=ign)
     shutil.copy(cd / "LICENSE.txt", d / "third_party/CedarDotNet/LICENSE.txt")
-    for name in ("models.json", "requirements.txt"):
+    for name in ("models.json", "suites.json", "requirements.txt"):
         shutil.copy(ROOT / name, d / name)
     shutil.copy(ROOT / "README.md", d / "PROJECT.md")
     (d / "results").mkdir()  # finished results are baked into the image so they survive Space restarts

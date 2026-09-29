@@ -84,3 +84,15 @@ dotnet bin/FindAJev.Bench.dll graph        # Graphviz DOT of the run lifecycle (
   `/`, renders the real machine graph (from Stateless `GetInfo()`), a per-test grid (click a cell to inspect), policy hit counts, failures,
   per-domain outcomes, the ranking and run controls.
 * Cedar is CedarDotNet (vendored in `third_party/`) over `cedar-policy` 4.13.0.
+
+## Suites, parameters and Cedar checks are declarative
+
+* **Suites** (`suites.json`): Classification + Automation (fast-decisions), **Retrieval** (MS MARCO v1.1: pick the gold passage among 4–10 candidates),
+  **Tools** (xLAM: pick the tool the gold call uses among 3–8). Select with `--suites core,retrieval,tools` / the API's `suites` / the Run tab;
+  add one by adding an entry (loader `jsonl` brings your own rows). Retrieval and Tools are stratified (PII-bearing passages, write/destructive tools)
+  so their policies are exercised; see `tools/encode.py`.
+* **Policy parameters** (`policies/params.json`, e.g. the confidence bars): override per run (`--param min_conf_few=70`); a run with a non-default
+  selection is stored and ranked separately (`variant` in the result) and records the effective parameters.
+* **Cedar checks** (`cedar-suite`): schema validation, golden cases, 115 language-conformance cases, exhaustive properties, mutation testing, gold coverage,
+  label-noise sensitivity, latency. The first three gate every run. Full catalogue and ideas: `policies/TESTING.md`.
+* Headline accuracy / latency stay on the original fast-decisions set so older results remain comparable; every suite has its own row in the per-suite table.
