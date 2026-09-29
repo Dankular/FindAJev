@@ -45,6 +45,23 @@ public static class Ranking
                         sb.AppendLine($"| {r.Id} | {name} | {s.Tests} | {s.Accuracy:P1} | {(pol ? $"{(double)(s.Correct + s.WrongButSafe) / s.Tests:P1}" : "–")} | {(pol ? s.Unsafe : "–")} | {(pol ? s.Overblocked : "–")} | {s.P50Ms:F1} | {s.P95Ms:F1} |");
                     }
             }
+            var withOracle = ok.Where(r => r.OracleRules.Count > 0).ToList();
+            if (withOracle.Count > 0)
+            {
+                sb.AppendLine("\n**Oracle rules** (label-free Cedar audits) — `precision` = flagged tests that really had a wrong label; `gold` = tests where the rule also fires on the gold labels (a sound rule fires on ~0%); a rule that fires on gold disagrees with the dataset, so its flags are weak evidence.\n");
+                sb.AppendLine("| model | rule | eligible | base error | flagged | precision | lift | fires on gold | verdict |");
+                sb.AppendLine("|---|---|--:|--:|--:|--:|--:|--:|---|");
+                foreach (var r in withOracle.OrderBy(r => r.Id))
+                    foreach (var (rule, st) in r.OracleRules.OrderBy(kv => kv.Key).Where(kv => kv.Value.Flagged > 0 || kv.Value.FiredOnGold > 0))
+                    {
+                        var goldPct = 100.0 * st.FiredOnGold / st.Eligible;
+                        var baseRate = (double)st.EligibleWrong / st.Eligible;
+                        var prec = st.Flagged == 0 ? 0 : (double)st.FlaggedWrong / st.Flagged;
+                        var lift = baseRate > 0 && st.Flagged > 0 ? prec / baseRate : 0;
+                        var verdict = goldPct > 5 ? "unsound on this data" : st.Flagged < 5 ? "too few flags" : lift < 1.1 ? "no better than chance" : "usable";
+                        sb.AppendLine($"| {r.Id} | {rule} | {st.Eligible} | {100 * baseRate:F0}% | {st.Flagged} | {(st.Flagged == 0 ? "–" : $"{100 * prec:F0}%")} | {(st.Flagged == 0 ? "–" : $"{lift:F2}×")} | {goldPct:F1}% | {verdict} |");
+                    }
+            }
             foreach (var r in g.Where(r => r.State != "Scored")) sb.AppendLine($"\n- **{r.Id}**: {r.State} — {r.Error}");
         }
         return sb.ToString();

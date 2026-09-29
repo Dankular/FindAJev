@@ -1,5 +1,6 @@
 using System.Text.Json;
 using System.Text.Json.Nodes;
+using CedarDotNet.Models;
 using CedarDotNet.Values;
 
 namespace FindAJev.Bench;
@@ -25,22 +26,27 @@ public static class Rows
     }
 
     /// <summary>Cedar context for a row given one label index per head (gold or predicted). Heads outside the pack are ignored.</summary>
-    public static Dictionary<string, Value> Context(PolicyEngine pe, Row row, Func<Item, int> label, long minConfidence)
+    public static Dictionary<string, Value> Context(PolicyEngine pe, Row row, Func<Item, int> label, long minConfidence, long minMargin = 100)
     {
-        var pack = pe.Packs[row.Domain];
+        pe.Packs.TryGetValue(row.Domain, out var pack);   // domains without a pack still get an (attribute-less) context for the generic oracles
         var attrs = new List<KeyValuePair<string, string>>();
         // test-level facts from the dataset (e.g. a harm category): not model outputs, so identical on the model's side and the gold side
         foreach (var (k, v) in row.Heads[0].Ctx ?? new Dictionary<string, string>()) attrs.Add(new(k, v));
         foreach (var h in row.Heads)
         {
-            if (pack.Heads.TryGetValue(h.Task, out var attr) && h.Labels is not null)
+            if (pack is not null && pack.Heads.TryGetValue(h.Task, out var attr) && h.Labels is not null)
                 attrs.Add(new(attr, h.Labels[label(h)]));
             // per-option metadata (retrieval: passage_pii/passage_source, tools: tool_risk): the chosen option's value
-            foreach (var a in pack.OptionAttrs ?? Array.Empty<string>())
+            foreach (var a in pack?.OptionAttrs ?? Array.Empty<string>())
                 if (h.OptAttrs is not null && h.OptAttrs.TryGetValue(a, out var vals))
                     attrs.Add(new(a, vals[label(h)]));
         }
-        return PolicyEngine.Ctx(row.Domain, minConfidence, row.Heads.Max(h => h.N), attrs);
+        var ctx = PolicyEngine.Ctx(row.Domain, minConfidence, row.Heads.Max(h => h.N), attrs, minMargin);
+        // ontology cross-references: an attribute whose value names an entity gets a `<attr>_ref` entity-typed twin
+        foreach (var (attr, type) in pack?.Refs ?? new Dictionary<string, string>())
+            if (attrs.FirstOrDefault(a => a.Key == attr) is { Key: not null } hit)
+                ctx[attr + "_ref"] = EntityUid.Create(type, hit.Value);
+        return ctx;
     }
 }
 
@@ -79,10 +85,14 @@ public static class PolicyCommands
             }
             else
             {
-                var ctx = new Dictionary<string, Value> { ["domain"] = c["domain"]!.GetValue<string>() };
+                var ctx = new Dictionary<string, Value> { ["domain"] = c["domain"]!.GetValue<string>(), ["minMargin"] = 100L };
                 foreach (var (k, v) in c["ctx"]!.AsObject())
                     ctx[k] = v!.GetValueKind() == JsonValueKind.Number ? (Value)v.GetValue<long>() : (Value)v.GetValue<string>();
-                d = pe.AuthorizeTest(c["domain"]!.GetValue<string>(), "case", action, ctx);
+                // "refs": {"attr": "EntityType"} adds `<attr>_ref`, an entity reference into the ontology, exactly as Rows.Context does
+                foreach (var (attr, type) in c["refs"]?.AsObject() ?? new JsonObject())
+                    ctx[attr + "_ref"] = EntityUid.Create(type!.GetValue<string>(), ((JsonValue)c["ctx"]![attr]!).GetValue<string>());
+                d = action == "Audit" ? pe.AuditTest(c["domain"]!.GetValue<string>(), "case", ctx)
+                                      : pe.AuthorizeTest(c["domain"]!.GetValue<string>(), "case", action, ctx);
             }
             var want = c["expect"]!.GetValue<string>() == "allow";
             var by = c["by"]?.GetValue<string>();

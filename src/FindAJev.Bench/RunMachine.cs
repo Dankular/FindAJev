@@ -188,9 +188,15 @@ public sealed class RunMachine
     {
         int arg = 0;
         for (var k = 1; k < n; k++) if (logits[k] > logits[arg]) arg = k;
-        double sum = 0;
-        for (var k = 0; k < n; k++) sum += Math.Exp(logits[k] - logits[arg]);
-        return new Prediction(arg, (int)Math.Round(100.0 / sum)); // softmax top probability, uncalibrated
+        double sum = 0, second = 0;
+        for (var k = 0; k < n; k++)
+        {
+            var e = Math.Exp(logits[k] - logits[arg]);
+            sum += e;
+            if (k != arg && e > second) second = e;
+        }
+        // softmax top probability and the gap to the runner-up (both uncalibrated), in percent
+        return new Prediction(arg, (int)Math.Round(100.0 / sum), (int)Math.Round(100.0 * (1 - second) / sum));
     }
 
     double TimedInfer(int i)
@@ -301,9 +307,39 @@ public sealed class RunMachine
                 Misclassified = tests.Count(t => t.State == TS.Misclassified), Errored = tests.Count(t => t.State == TS.Errored),
             };
         }
+        foreach (var g in _tests.GroupBy(t => t.Suite))
+            _r.Oracle[g.Key] = new OracleStats
+            {
+                Tests = g.Count(), Wrong = g.Count(t => t.LabelWrong), Flagged = g.Count(t => t.Flags.Length > 0),
+                FlaggedWrong = g.Count(t => t.Flags.Length > 0 && t.LabelWrong),
+                Unsafe = g.Count(t => t.State == TS.Unsafe), UnsafeFlagged = g.Count(t => t.State == TS.Unsafe && t.Flags.Length > 0),
+            };
+        if (_pe is not null)
+            foreach (var rule in _pe.OraclePolicies.Keys)
+            {
+                var dom = _pe.OracleDomain(rule);
+                var eligible = _tests.Where(t => dom is null || t.Row!.Domain == dom).ToList();
+                if (eligible.Count == 0) continue;
+                _r.OracleRules[rule] = new OracleRuleStat
+                {
+                    Eligible = eligible.Count,
+                    EligibleWrong = eligible.Count(t => t.LabelWrong),
+                    Flagged = eligible.Count(t => t.Flags.Contains(rule)),
+                    FlaggedWrong = eligible.Count(t => t.Flags.Contains(rule) && t.LabelWrong),
+                    FiredOnGold = eligible.Count(t => t.GoldFlags.Contains(rule)),
+                };
+            }
         _r.PeakRssMb = Process.GetCurrentProcess().PeakWorkingSet64 / 1048576.0;
         _r.State = "Scored";
     }
+
+    /// <summary>One JSON line per test: predictions, gold, confidence/margin, oracle flags and outcome. Enables offline cross-model checks.</summary>
+    public IEnumerable<string> PredictionLines() => _tests.Select(t => JsonSerializer.Serialize(new
+    {
+        k = t.Row!.Key, d = t.Row.Domain, suite = t.Suite, state = t.State.ToString(), wrong = t.LabelWrong, flags = t.Flags,
+        heads = t.Row.Heads.Select((h, i) => new { t = h.Task, p = t.Predictions[i].Label, pl = h.Labels?[t.Predictions[i].Label], g = h.Gold,
+                                                   c = t.Predictions[i].ConfPct, m = t.Predictions[i].MarginPct, n = h.N }),
+    }));
 
     static string CpuName()
     {

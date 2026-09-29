@@ -8,7 +8,7 @@ using CedarDotNet.Values;
 
 namespace FindAJev.Bench;
 
-public sealed record Pack(string[] Actions, Dictionary<string, string> Heads, string? Suite = null, string[]? OptionAttrs = null)
+public sealed record Pack(string[] Actions, Dictionary<string, string> Heads, string? Suite = null, string[]? OptionAttrs = null, Dictionary<string, string>? Refs = null)
 {
     public string SuiteName => Suite ?? "automation";
 }
@@ -27,12 +27,16 @@ public sealed class PolicyEngine
     readonly string _schemaText;
     readonly Dictionary<string, string> _test = new();   // id -> text, per-test policies
     readonly Dictionary<string, string> _run = new();    // id -> text, run-lifecycle policies
+    readonly Dictionary<string, string> _oracle = new(); // id -> text, label-free oracle rules (Action::"Audit")
+    readonly Dictionary<string, PolicySet> _oracleByDomain = new();
+    readonly List<Entity> _ontology = new();
     readonly Dictionary<string, PolicySet> _byDomain = new();
     public PolicyEngine Reordered() { var r = WithTestPolicies(_test.Reverse().ToDictionary(kv => kv.Key, kv => kv.Value)); return r; }
     public Dictionary<string, Pack> Packs { get; }
     public IReadOnlyDictionary<string, string> TestPolicies => _test;
     public int PolicyCountFor(string domain) => _byDomain[domain].StaticPolicies.Count;
     public IReadOnlyDictionary<string, string> RunPolicies => _run;
+    public IReadOnlyDictionary<string, string> OraclePolicies => _oracle;
 
     /// <summary>Effective policy parameters (params.json + overrides).</summary>
     public IReadOnlyDictionary<string, long> Params { get; }
@@ -57,9 +61,20 @@ public sealed class PolicyEngine
         Packs = JsonSerializer.Deserialize<JsonObject>(File.ReadAllText(Path.Combine(dir, "packs.json")))!["packs"]!
             .Deserialize<Dictionary<string, Pack>>(new JsonSerializerOptions { PropertyNameCaseInsensitive = true })!;
 
+        var ofile = Path.Combine(dir, "ontology.json");
+        if (File.Exists(ofile))
+            foreach (var e in JsonNode.Parse(File.ReadAllText(ofile))!["entities"]!.AsArray())
+                _ontology.Add(new Entity
+                {
+                    Uid = EntityUid.Create(e!["type"]!.GetValue<string>(), e["id"]!.GetValue<string>()),
+                    Attrs = e["attrs"]!.AsObject().ToDictionary(kv => kv.Key, kv => kv.Value!.GetValueKind() == JsonValueKind.True ? (Value)true
+                        : kv.Value.GetValueKind() == JsonValueKind.False ? (Value)false : kv.Value.GetValueKind() == JsonValueKind.Number ? (Value)kv.Value.GetValue<long>() : (Value)kv.Value.GetValue<string>()),
+                });
+
         foreach (var file in Directory.GetFiles(dir, "*.cedar").OrderBy(f => f))
         {
-            var target = Path.GetFileName(file) == "run.cedar" ? _run : _test;
+            var fname = Path.GetFileName(file);
+            var target = fname == "run.cedar" ? _run : fname.StartsWith("oracle") ? _oracle : _test;
             var source = ParamRx.Replace(File.ReadAllText(file), m =>
                 pp.TryGetValue(m.Groups[1].Value, out var val) ? val.ToString() : throw new InvalidDataException($"{file}: unknown parameter {{{{{m.Groups[1].Value}}}}}"));
             foreach (var text in CedarUtilities.LoadPolicySet(source))
@@ -100,7 +115,7 @@ public sealed class PolicyEngine
     public List<string> Validate()
     {
         var problems = new List<string>();
-        foreach (var (name, set) in new[] { ("test", _test), ("run", _run) })
+        foreach (var (name, set) in new[] { ("test", _test), ("run", _run), ("oracle", _oracle) })
         {
             var call = new JsonObject
             {
@@ -161,6 +176,41 @@ public sealed class PolicyEngine
         return Call(action, Session, item, null, ctx, _byDomain[domain]);
     }
 
+    /// <summary>
+    /// Run the label-free oracle rules over a prediction's context. Allow = flagged as suspicious; Reasons = the rule ids that fired.
+    /// Works for any domain: domains without a pack only get the generic rules.
+    /// </summary>
+    public PolicyDecision AuditTest(string domain, string testId, Dictionary<string, Value> ctx)
+    {
+        if (!_oracleByDomain.TryGetValue(domain, out var set))
+        {
+            var known = Packs.Keys;
+            set = _oracleByDomain[domain] = new PolicySet
+            {
+                StaticPolicies = _oracle.Where(kv => kv.Value.Contains($"\"{domain}\"") || !known.Any(d => kv.Value.Contains($"\"{d}\"")))
+                                        .ToDictionary(kv => kv.Key, kv => kv.Value),
+            };
+        }
+        var item = new Entity { Uid = EntityUid.Create("Item", testId), Attrs = new Dictionary<string, Value> { ["domain"] = domain } };
+        var principal = new Entity { Uid = Session };
+        var ans = CedarFunctions.IsAuthorized(new AuthorizationCall
+        {
+            Principal = Session, Action = EntityUid.Create("Action", "Audit"), Resource = item.Uid, Context = ctx, Schema = _schema,
+            ValidateRequest = true, Policies = set, Entities = new List<Entity> { item, principal }.Concat(_ontology).ToList(),
+        });
+        return ans switch
+        {
+            AuthorizationAnswerSuccess ok => new PolicyDecision("Audit", ok.Response.Decision == Decision.Allow, ok.Response.Diagnostics.Reason.ToArray(),
+                ok.Response.Diagnostics.Errors.Count > 0 ? string.Join("; ", ok.Response.Diagnostics.Errors.Select(e => $"{e.PolicyId}: {e.Error.Message}")) : null),
+            AuthorizationAnswerFailure bad => new PolicyDecision("Audit", false, Array.Empty<string>(), string.Join("; ", bad.Errors.Select(e => e.Message))),
+            _ => new PolicyDecision("Audit", false, Array.Empty<string>(), "unknown answer"),
+        };
+    }
+
+    /// <summary>The domain an oracle rule is written for (its text names the domain), or null for a generic rule.</summary>
+    public string? OracleDomain(string ruleId) =>
+        _oracle.TryGetValue(ruleId, out var text) ? Packs.Keys.FirstOrDefault(d => text.Contains($"\"{d}\"")) : null;
+
     /// <summary>Authorize FetchModel / RunModel for the run lifecycle.</summary>
     public PolicyDecision AuthorizeRun(string action, ModelSpec m, int threads, int cpus)
     {
@@ -173,9 +223,9 @@ public sealed class PolicyEngine
         return Call(action, Runner, model, null, ctx, new PolicySet { StaticPolicies = _run });
     }
 
-    public static Dictionary<string, Value> Ctx(string domain, long minConfidence, long options, IEnumerable<KeyValuePair<string, string>> attrs)
+    public static Dictionary<string, Value> Ctx(string domain, long minConfidence, long options, IEnumerable<KeyValuePair<string, string>> attrs, long minMargin = 100)
     {
-        var d = new Dictionary<string, Value> { ["domain"] = domain, ["minConfidence"] = minConfidence, ["options"] = options };
+        var d = new Dictionary<string, Value> { ["domain"] = domain, ["minConfidence"] = minConfidence, ["options"] = options, ["minMargin"] = minMargin };
         foreach (var (k, v) in attrs) d[k] = v;
         return d;
     }

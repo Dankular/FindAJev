@@ -2,13 +2,16 @@
 entity Session;
 entity Item = { domain: String };
 entity Runner;
+// Ontology: facts the oracle rules cross-reference the model's answers against (policies/ontology.json). Heuristic knowledge, not ground truth.
+entity Sport = { hasDraws: Bool };
 entity Model = { license: String, sizeMb: Long, publisher: String };
 
-// Per-test context: one attribute per (domain, head) so packs never collide. minConfidence = lowest head confidence (0-100, uncalibrated softmax); options = largest option count among the test's heads.
+// Per-test context: one attribute per (domain, head) so packs never collide. minConfidence = lowest head confidence (0-100, uncalibrated softmax); minMargin = smallest gap between the top two probabilities (0-100); options = largest option count among the test's heads.
 type TestCtx = {
   domain: String,
   minConfidence: Long,
   options: Long,
+  minMargin: Long,
   bank_intent?: String,
   benefit_program?: String,
   benefit_status?: String,
@@ -34,7 +37,16 @@ type TestCtx = {
   harm_category?: String,
   jailbreak_label?: String,
   tox_label?: String,
-  pii_class?: String
+  pii_class?: String,
+  sport?: String,
+  sport_result?: String,
+  sport_upset?: String,
+  sport_ref?: Sport,
+  perm_agree?: String,
+  self_check?: String,
+  consensus?: String,
+  votes?: Long,
+  models?: Long
 };
 type RunCtx = { threads: Long, cpus: Long };
 
@@ -68,6 +80,9 @@ action ShareText in [AutoAct] appliesTo { principal: [Session], resource: [Item]
 action AutoRedact in [AutoAct] appliesTo { principal: [Session], resource: [Item], context: TestCtx };
 action BlockAndLog appliesTo { principal: [Session], resource: [Item], context: TestCtx };
 action BlockExport appliesTo { principal: [Session], resource: [Item], context: TestCtx };
+
+// Oracle audit: a permit means 'this prediction looks suspicious'; the reasons are the rule ids that fired. No gold labels involved.
+action Audit appliesTo { principal: [Session], resource: [Item], context: TestCtx };
 
 // Harness-level actions guarding the run lifecycle.
 action FetchModel appliesTo { principal: [Runner], resource: [Model], context: RunCtx };

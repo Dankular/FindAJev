@@ -1,0 +1,61 @@
+{
+  "_doc": "Facts used by oracle rules through Cedar entities. This is heuristic domain knowledge written by hand; `cedar-suite --checks oracle-gold-audit` shows where the datasets disagree with it.",
+  "entities": [
+    {
+      "type": "Sport",
+      "id": "baseball",
+      "attrs": {
+        "hasDraws": false
+      }
+    },
+    {
+      "type": "Sport",
+      "id": "basketball",
+      "attrs": {
+        "hasDraws": false
+      }
+    },
+    {
+      "type": "Sport",
+      "id": "tennis",
+      "attrs": {
+        "hasDraws": false
+      }
+    },
+    {
+      "type": "Sport",
+      "id": "motorsport",
+      "attrs": {
+        "hasDraws": false
+      }
+    },
+    {
+      "type": "Sport",
+      "id": "football",
+      "attrs": {
+        "hasDraws": false
+      }
+    },
+    {
+      "type": "Sport",
+      "id": "soccer",
+      "attrs": {
+        "hasDraws": true
+      }
+    },
+    {
+      "type": "Sport",
+      "id": "cricket",
+      "attrs": {
+        "hasDraws": true
+      }
+    },
+    {
+      "type": "Sport",
+      "id": "other",
+      "attrs": {
+        "hasDraws": true
+      }
+    }
+  ]
+}

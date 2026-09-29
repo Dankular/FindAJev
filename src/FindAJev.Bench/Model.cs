@@ -50,8 +50,30 @@ public sealed class RunResult
     public Dictionary<string, long> PolicyParams { get; set; } = new();
     /// <summary>Per-suite outcome counts from the per-test state machines (empty when run without policies).</summary>
     public Dictionary<string, SuiteResult> Suites { get; set; } = new();
+    /// <summary>Label-free Cedar oracle quality per suite: how well flags coincide with real errors (see OracleStats).</summary>
+    public Dictionary<string, OracleStats> Oracle { get; set; } = new();
+    public Dictionary<string, OracleRuleStat> OracleRules { get; set; } = new();
     public string Cpu { get; set; } = "";
     public string OrtVersion { get; set; } = "";
+}
+
+public sealed class OracleStats
+{
+    public int Tests { get; set; }
+    public int Wrong { get; set; }            // tests where at least one head was predicted wrong
+    public int Flagged { get; set; }          // tests the oracle rules flagged (no gold labels used)
+    public int FlaggedWrong { get; set; }     // flagged AND really wrong  => precision = FlaggedWrong / Flagged, recall = FlaggedWrong / Wrong
+    public int Unsafe { get; set; }           // enforcement failures (Cedar outcome differs unsafely from gold)
+    public int UnsafeFlagged { get; set; }    // ... that the oracle had flagged beforehand
+}
+
+public sealed class OracleRuleStat
+{
+    public int Eligible { get; set; }         // tests the rule can apply to (its domain, or all tests for a generic rule)
+    public int EligibleWrong { get; set; }    // of those, tests with a wrong label: the base rate a rule has to beat (lift = precision / base rate)
+    public int Flagged { get; set; }
+    public int FlaggedWrong { get; set; }
+    public int FiredOnGold { get; set; }      // tests where the rule also fires on the GOLD labels (a sound rule: ~0)
 }
 
 public sealed class SuiteResult

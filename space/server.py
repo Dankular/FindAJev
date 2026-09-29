@@ -77,7 +77,7 @@ def normalize(suites, params):
 CHECKS = {"updated": None, "cedar": None, "results": {}}   # latest Cedar check outcomes, shown on the dashboard
 
 # Leaf states of the per-test machine, in the order used for the compact per-test state codes sent to the dashboard.
-TEST_STATES = ["Queued", "Inferring", "Enforcing", "Correct", "WrongButSafe", "Overblocked", "Unsafe", "Misclassified", "Errored"]
+TEST_STATES = ["Queued", "Inferring", "Auditing", "Enforcing", "Correct", "WrongButSafe", "Overblocked", "Unsafe", "Misclassified", "Errored"]
 CODE = {s: i for i, s in enumerate(TEST_STATES)}
 
 
@@ -133,6 +133,8 @@ class Live:
         self.policy_hits = {}               # policy id -> {"allow": n, "deny": n} over pred-side decisions
         self.recent = collections.deque(maxlen=40)   # latest Unsafe / Overblocked / Errored verdict summaries
         self.recent_seq = 0
+        self.flagged = bytearray()          # 1 where the label-free Cedar oracles flagged the test
+        self.oracle = {}                    # rule id -> {"flagged", "tp", "gold"} folded from verdict events
 
     def ingest(self, ev):
         kind = ev.get("e")
@@ -153,6 +155,7 @@ class Live:
                 self.counts = collections.Counter({"Queued": n})
                 self.edges, self.log, self.verdicts = collections.Counter(), [], {}
                 self.policy_hits, self.recent = {}, collections.deque(maxlen=40)
+                self.flagged, self.oracle = bytearray(n), {}
             elif kind == "test" and self.plan:
                 i, frm, to = ev["i"], ev["from"], ev["to"]
                 self.states[i] = CODE[to]
@@ -162,6 +165,14 @@ class Live:
                 self.log.append((i, CODE[to]))
             elif kind == "verdict":
                 self.verdicts[ev["i"]] = ev
+                if ev.get("flags"):
+                    self.flagged[ev["i"]] = 1
+                for rule in ev.get("flags", []):
+                    o = self.oracle.setdefault(rule, {"flagged": 0, "tp": 0, "gold": 0})
+                    o["flagged"] += 1
+                    o["tp"] += 1 if ev.get("wrong") else 0
+                for rule in ev.get("goldFlags", []):
+                    self.oracle.setdefault(rule, {"flagged": 0, "tp": 0, "gold": 0})["gold"] += 1
                 for a in ev.get("acts", []):
                     for pid in a["by"]:
                         h = self.policy_hits.setdefault(pid, {"allow": 0, "deny": 0})
@@ -176,7 +187,8 @@ class Live:
         with self.lock:
             return {"model": self.model, "runState": self.run_state, "runPolicy": list(self.run_policy), "graphs": dict(self.graphs),
                     "plan": self.plan, "states": bytes(self.states), "counts": dict(self.counts), "edges": dict(self.edges),
-                    "policyHits": {k: dict(v) for k, v in self.policy_hits.items()}, "recent": list(self.recent)}
+                    "policyHits": {k: dict(v) for k, v in self.policy_hits.items()}, "recent": list(self.recent),
+                    "flagged": bytes(self.flagged), "oracle": {k: dict(v) for k, v in self.oracle.items()}}
 
     def init_payload(self):
         with self.lock:

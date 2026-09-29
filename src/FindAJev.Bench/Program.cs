@@ -54,6 +54,7 @@ switch (argv.FirstOrDefault())
         Directory.CreateDirectory(outDir);
         var resultPath = Path.Combine(outDir, $"{spec.Id}.t{threads}{suffix}.json");
         File.WriteAllText(resultPath, JsonSerializer.Serialize(r, Json.Opts));
+        if (r.State == "Scored") File.WriteAllLines(resultPath[..^5] + ".preds.jsonl", machine.PredictionLines());
         Console.WriteLine("RESULT_FILE " + Path.GetRelativePath(root, resultPath));
         Console.WriteLine(r.State == "Scored"
             ? $"{r.Id} [{r.State}] acc={r.Accuracy:P1} p50={r.P50Ms:F1}ms p95={r.P95Ms:F1}ms {r.ItemsPerSec:F1}/s rss={r.PeakRssMb:F0}MB load={r.LoadSeconds:F1}s"

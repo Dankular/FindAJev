@@ -204,6 +204,18 @@
       "optionAttrs": [
         "pii_class"
       ]
+    },
+    "sports_recap": {
+      "suite": "classification",
+      "actions": [],
+      "heads": {
+        "sport": "sport",
+        "result": "sport_result",
+        "upset": "sport_upset"
+      },
+      "refs": {
+        "sport": "Sport"
+      }
     }
   }
 }

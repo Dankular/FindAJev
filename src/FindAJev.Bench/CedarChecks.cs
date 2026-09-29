@@ -36,6 +36,7 @@ public static class CedarChecks
         new("properties", "Policy properties", "Invariants checked exhaustively over every label combination of every domain pack (confidence floor, monotonicity, order invariance) plus safety-net findings.", true),
         new("mutation", "Mutation testing", "Break each policy on purpose (delete, flip effect, swap literal, relax comparison); a mutant the golden cases do not catch marks a gap in the tests.", false),
         new("gold-coverage", "Gold-label coverage", "Run every dataset row through Cedar with gold labels: which actions are allowed/denied, and which policies never decide anything.", false),
+        new("oracle-gold-audit", "Oracle rules vs gold", "Run every oracle rule over the GOLD labels: a sound contradiction rule should almost never fire on human-labelled truth; when one does, the rule or the ontology disagrees with the dataset.", false),
         new("noise-sweep", "Label-noise sensitivity", "Corrupt gold labels at 5-40% and measure how often Cedar's outcome turns Unsafe or Overblocked: how fragile each policy pack is to classifier mistakes, independent of any model.", false),
         new("bench", "Cedar latency", "Authorization latency per domain pack (CedarDotNet re-sends the policy set on every call).", false),
     };
@@ -51,7 +52,7 @@ public static class CedarChecks
             {
                 var probs = pe.Validate();
                 var errs = probs.Where(p => !p.Contains("warning:")).ToList();
-                o.Total = pe.TestPolicies.Count + pe.RunPolicies.Count; o.Pass = errs.Count == 0 ? o.Total : o.Total - errs.Count;
+                o.Total = pe.TestPolicies.Count + pe.RunPolicies.Count + pe.OraclePolicies.Count; o.Pass = errs.Count == 0 ? o.Total : o.Total - errs.Count;
                 o.Passed = errs.Count == 0; o.Summary = $"{o.Total} policies, {errs.Count} error(s), {probs.Count - errs.Count} warning(s)";
                 o.Findings = probs.Select(p => p.Replace("\n", " ")).Take(20).ToList();
                 break;
@@ -74,6 +75,7 @@ public static class CedarChecks
             case "properties": Properties(pe, root, o); break;
             case "mutation": Mutation(pe, root, o); break;
             case "gold-coverage": GoldCoverage(pe, root, o); break;
+            case "oracle-gold-audit": OracleGoldAudit(pe, root, o); break;
             case "noise-sweep": NoiseSweep(pe, root, o); break;
             case "bench": Bench(pe, root, o); break;
             default: throw new ArgumentException($"unknown check '{id}'; available: {string.Join(", ", All.Select(c => c.Id))}");
@@ -296,6 +298,41 @@ public static class CedarChecks
         o.Summary = $"{rows.Count} rows ({inPack} in a pack), {stats.Count} domain/action pairs, {dead.Count} policy(ies) never decide a gold outcome";
         o.Findings = dead.Select(d => "never decides a gold outcome: " + d).Concat(constant.Select(c => "always the same decision on gold labels: " + c)).ToList();
         o.Details = stats.Select(kv => new { pair = kv.Key, allow = kv.Value.allow, deny = kv.Value.deny });
+    }
+
+    // ------------------------------------------------------------------------------------------------------ oracle vs gold
+    static void OracleGoldAudit(PolicyEngine pe, string root, CheckOutcome o)
+    {
+        var items = AnyFamilyItems(root);
+        if (items.Count == 0) { o.Passed = true; o.Summary = "skipped: no encoded data"; return; }
+        var rows = Rows.Group(items);
+        var fired = pe.OraclePolicies.Keys.ToDictionary(k => k, _ => 0);
+        var examples = pe.OraclePolicies.Keys.ToDictionary(k => k, _ => new List<string>());
+        var domainRows = rows.GroupBy(r => r.Domain).ToDictionary(g => g.Key, g => g.Count());
+        var ruleDomain = new Dictionary<string, string?>();
+        foreach (var (id, text) in pe.OraclePolicies)
+            ruleDomain[id] = domainRows.Keys.FirstOrDefault(d => text.Contains($"\"{d}\""));   // null = generic rule
+        foreach (var row in rows)
+        {
+            // margin = 100: this audits the coherence rules, not the confidence-based ones (gold labels have no uncertainty)
+            var d = pe.AuditTest(row.Domain, row.Key, Rows.Context(pe, row, h => h.Gold, 100, 100));
+            if (d.Error is not null) throw new InvalidOperationException(d.Error);
+            if (d.Allow)
+                foreach (var r in d.Reasons)
+                {
+                    fired[r]++;
+                    if (examples[r].Count < 3) examples[r].Add(string.Join(", ", row.Heads.Select(h => $"{h.Task}={h.Labels?[h.Gold]}")));
+                }
+        }
+        var table = pe.OraclePolicies.Keys.OrderBy(k => k).Select(k =>
+        {
+            var dom = ruleDomain[k]; var n = dom is null ? rows.Count : domainRows[dom];
+            return new { rule = k, domain = dom ?? "(all)", rows = n, firedOnGold = fired[k], rate = Math.Round(100.0 * fired[k] / n, 2), examples = examples[k] };
+        }).ToList();
+        o.Total = table.Count; o.Pass = table.Count(t => t.firedOnGold == 0); o.Passed = true;
+        o.Summary = $"{table.Count} rules, {o.Pass} never fire on gold; {table.Count - o.Pass} disagree with the dataset on at least one row";
+        o.Findings = table.Where(t => t.firedOnGold > 0).Select(t => $"{t.rule} fires on {t.firedOnGold}/{t.rows} gold rows ({t.rate}%), e.g. {string.Join(" | ", t.examples)}").ToList();
+        o.Details = table;
     }
 
     // ------------------------------------------------------------------------------------------------------ noise sweep

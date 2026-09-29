@@ -12,16 +12,16 @@ import numpy as np
 from fastapi import HTTPException
 from PIL import Image
 
-COLORS = {"Queued": "#8b93a1", "Inferring": "#4f8cff", "Enforcing": "#a78bfa", "Correct": "#34d399", "WrongButSafe": "#2dd4bf",
+COLORS = {"Queued": "#8b93a1", "Inferring": "#4f8cff", "Auditing": "#38bdf8", "Enforcing": "#a78bfa", "Correct": "#34d399", "WrongButSafe": "#2dd4bf",
           "Overblocked": "#fbbf24", "Unsafe": "#f87171", "Misclassified": "#fb923c", "Errored": "#f472b6"}
-STATES = list(COLORS)
-GROUPS = [("activated", ["Inferring", "Enforcing"]), ("passed", ["Correct", "WrongButSafe"]),
+STATES = list(COLORS)   # order must match server.TEST_STATES (the compact per-test state codes)
+GROUPS = [("activated", ["Inferring", "Auditing", "Enforcing"]), ("passed", ["Correct", "WrongButSafe"]),
           ("failed", ["Overblocked", "Unsafe", "Misclassified", "Errored"]), ("queued", ["Queued"])]
 CRUMBS = ["Pending", "ModelReady", "SessionLoaded", "WarmedUp", "Measured", "Scored"]
 
 # Hand-placed layout for the known test machine. Unknown states fall into a spare row so a machine change never hides a node.
-POS = {"Queued": (70, 190), "Inferring": (240, 190), "Enforcing": (410, 190), "Correct": (610, 50), "WrongButSafe": (610, 120),
-       "Overblocked": (610, 215), "Unsafe": (610, 285), "Misclassified": (610, 350), "Errored": (790, 285)}
+POS = {"Queued": (60, 190), "Inferring": (200, 190), "Auditing": (340, 190), "Enforcing": (480, 190), "Correct": (670, 50), "WrongButSafe": (670, 120),
+       "Overblocked": (670, 215), "Unsafe": (670, 285), "Misclassified": (670, 350), "Errored": (830, 285)}
 W, H = 118, 46
 TXT = "var(--body-text-color)"
 MUT = "var(--body-text-color-subdued)"
@@ -104,7 +104,7 @@ def dataset_html(v, registry):
     tot, done = {}, {}
     for i, d in enumerate(ds_of):
         tot[d] = tot.get(d, 0) + 1
-        if states[i] not in (0, 1, 2):        # not Queued / Inferring / Enforcing
+        if states[i] not in (0, 1, 2, 3):     # not Queued / Inferring / Auditing / Enforcing
             done[d] = done.get(d, 0) + 1
     started = [i for i in range(len(states)) if states[i] != 0]
     cur = ds_of[max(started)] if started else ds_of[0]
@@ -213,7 +213,7 @@ def legend_html(counts):
 CELL, GAP, COLS = 10, 2, 60
 
 
-def grid_image(states, n):
+def grid_image(states, n, flagged=b""):
     """One cell per test, coloured by state. Returns (PIL image, cols) — cell (i) sits at column i % COLS, row i // COLS."""
     if not n:
         return None
@@ -225,7 +225,18 @@ def grid_image(states, n):
     for i in range(n):
         y, x = (i // COLS) * step, (i % COLS) * step
         img[y:y + CELL, x:x + CELL] = pal[states[i]]
+        if i < len(flagged) and flagged[i]:                       # oracle-flagged: a white centre dot
+            img[y + 3:y + CELL - 3, x + 3:x + CELL - 3] = (255, 255, 255)
     return Image.fromarray(img)
+
+
+def oracle_rows(rules):
+    """Live view of the label-free oracle rules: how often each flags, how often a flag was a real error, and whether it also fires on gold."""
+    rows = []
+    for rule, o in sorted(rules.items(), key=lambda kv: -kv[1]["flagged"]):
+        prec = f'{100 * o["tp"] / o["flagged"]:.0f}%' if o["flagged"] else "–"
+        rows.append([rule, o["flagged"], prec, o["gold"]])
+    return rows
 
 
 def policy_rows(hits):
@@ -270,10 +281,10 @@ def build_ui(srv):
         job = latest_job()
         snap = srv.snapshot(job) if job else None
         counts = v["counts"]
-        img = grid_image(v["states"], v["plan"]["tests"]) if v["plan"] else None
+        img = grid_image(v["states"], v["plan"]["tests"], v["flagged"]) if v["plan"] else None
         g = v["graphs"].get("test")
         return (status_html(v, snap), dataset_html(v, registry), graph_svg(g, counts, v["edges"]), legend_html(counts), img,
-                policy_rows(v["policyHits"]), feed_rows(v["recent"]), domain_rows(v), checks_html(listing, srv.CHECKS["results"]))
+                policy_rows(v["policyHits"]), feed_rows(v["recent"]), domain_rows(v), checks_html(listing, srv.CHECKS["results"]), oracle_rows(v["oracle"]))
 
     def inspect(i):
         try:
@@ -329,6 +340,10 @@ def build_ui(srv):
                 with gr.Row():
                     grid = gr.Image(label="tests (click a cell to inspect)", interactive=False, buttons=[], scale=3)
                     pol = gr.Dataframe(headers=["Cedar policy (model labels)", "allow", "deny"], interactive=False, scale=2, max_height=420)
+                gr.Markdown("**Oracle rules** — label-free Cedar audits that flag suspicious predictions (white dot in the grid). *flagged* = how often the rule fired; "
+                            "*precision* = share of flags that were real errors (compare with the base error rate); *on gold* = times the rule also fires on the gold labels "
+                            "(a sound rule ≈ 0).")
+                oracle = gr.Dataframe(headers=["rule", "flagged", "precision", "on gold"], interactive=False, max_height=260)
             with gr.Tab("Failures & inspect"):
                 feed = gr.Dataframe(headers=["test", "state", "key", "model vs gold", "decision flips"], interactive=False, max_height=420)
                 with gr.Row():
@@ -369,7 +384,7 @@ def build_ui(srv):
                 go.click(start, [model, allm, skip, threads, limit, key, suite_pick, *pnums], out)
 
         timer = gr.Timer(0.5)
-        timer.tick(tick, outputs=[status, datasets, graph, legend, grid, pol, feed, dom, checks_view])
+        timer.tick(tick, outputs=[status, datasets, graph, legend, grid, pol, feed, dom, checks_view, oracle])
         grid.select(on_select, outputs=[idx, detail])
         btn.click(inspect, idx, detail)
         demo.load(ranking, outputs=rank)

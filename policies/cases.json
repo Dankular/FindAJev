@@ -1631,5 +1631,339 @@
   },
   "by": "guard.low-confidence-many",
   "exact": true
+ },
+ {
+  "name": "oracle: phishing but reply is flagged",
+  "kind": "test",
+  "domain": "email_triage",
+  "action": "Audit",
+  "expect": "allow",
+  "ctx": {
+   "minConfidence": 100,
+   "options": 2,
+   "email_phishing": "yes",
+   "email_action": "reply"
+  },
+  "by": "oracle.email.phishing-but-reply",
+  "exact": true
+ },
+ {
+  "name": "oracle: phishing but approve is flagged",
+  "kind": "test",
+  "domain": "email_triage",
+  "action": "Audit",
+  "expect": "allow",
+  "ctx": {
+   "minConfidence": 100,
+   "options": 2,
+   "email_phishing": "yes",
+   "email_action": "approve"
+  },
+  "by": "oracle.email.phishing-but-reply",
+  "exact": true
+ },
+ {
+  "name": "oracle: phishing quarantined-style action is coherent",
+  "kind": "test",
+  "domain": "email_triage",
+  "action": "Audit",
+  "expect": "deny",
+  "ctx": {
+   "minConfidence": 100,
+   "options": 2,
+   "email_phishing": "yes",
+   "email_action": "escalate"
+  }
+ },
+ {
+  "name": "oracle: needs reply but fyi is flagged",
+  "kind": "test",
+  "domain": "email_triage",
+  "action": "Audit",
+  "expect": "allow",
+  "ctx": {
+   "minConfidence": 100,
+   "options": 2,
+   "email_needs_reply": "yes",
+   "email_action": "fyi"
+  },
+  "by": "oracle.email.needs-reply-but-fyi",
+  "exact": true
+ },
+ {
+  "name": "oracle: needs reply and reply is coherent",
+  "kind": "test",
+  "domain": "email_triage",
+  "action": "Audit",
+  "expect": "deny",
+  "ctx": {
+   "minConfidence": 100,
+   "options": 2,
+   "email_needs_reply": "yes",
+   "email_action": "reply"
+  }
+ },
+ {
+  "name": "oracle: no reply needed but reply is flagged",
+  "kind": "test",
+  "domain": "email_triage",
+  "action": "Audit",
+  "expect": "allow",
+  "ctx": {
+   "minConfidence": 100,
+   "options": 2,
+   "email_needs_reply": "no",
+   "email_action": "reply"
+  },
+  "by": "oracle.email.no-reply-needed-but-reply",
+  "exact": true
+ },
+ {
+  "name": "oracle: newsletter that needs a reply is flagged",
+  "kind": "test",
+  "domain": "email_triage",
+  "action": "Audit",
+  "expect": "allow",
+  "ctx": {
+   "minConfidence": 100,
+   "options": 2,
+   "email_category": "newsletter",
+   "email_needs_reply": "yes"
+  },
+  "by": "oracle.email.newsletter-needs-reply",
+  "exact": true
+ },
+ {
+  "name": "oracle: billing mail that needs a reply is coherent",
+  "kind": "test",
+  "domain": "email_triage",
+  "action": "Audit",
+  "expect": "deny",
+  "ctx": {
+   "minConfidence": 100,
+   "options": 2,
+   "email_category": "billing",
+   "email_needs_reply": "yes"
+  }
+ },
+ {
+  "name": "oracle: fraud at low urgency is flagged",
+  "kind": "test",
+  "domain": "ticket_route",
+  "action": "Audit",
+  "expect": "allow",
+  "ctx": {
+   "minConfidence": 100,
+   "options": 2,
+   "ticket_queue": "fraud_review",
+   "ticket_urgency": "low"
+  },
+  "by": "oracle.ticket.fraud-low-urgency",
+  "exact": true
+ },
+ {
+  "name": "oracle: fraud at critical urgency is coherent",
+  "kind": "test",
+  "domain": "ticket_route",
+  "action": "Audit",
+  "expect": "deny",
+  "ctx": {
+   "minConfidence": 100,
+   "options": 2,
+   "ticket_queue": "fraud_review",
+   "ticket_urgency": "critical"
+  }
+ },
+ {
+  "name": "oracle: outage at low urgency is flagged",
+  "kind": "test",
+  "domain": "ticket_route",
+  "action": "Audit",
+  "expect": "allow",
+  "ctx": {
+   "minConfidence": 100,
+   "options": 2,
+   "ticket_queue": "outages",
+   "ticket_urgency": "low"
+  },
+  "by": "oracle.ticket.outage-low-urgency",
+  "exact": true
+ },
+ {
+  "name": "oracle: shipping at low urgency is coherent",
+  "kind": "test",
+  "domain": "ticket_route",
+  "action": "Audit",
+  "expect": "deny",
+  "ctx": {
+   "minConfidence": 100,
+   "options": 2,
+   "ticket_queue": "shipping",
+   "ticket_urgency": "low"
+  }
+ },
+ {
+  "name": "oracle: urgent billing question is flagged",
+  "kind": "test",
+  "domain": "clinic_request",
+  "action": "Audit",
+  "expect": "allow",
+  "ctx": {
+   "minConfidence": 100,
+   "options": 2,
+   "clinic_urgent": "yes",
+   "clinic_request": "billing"
+  },
+  "by": "oracle.clinic.urgent-administrative",
+  "exact": true
+ },
+ {
+  "name": "oracle: urgent symptom question is coherent",
+  "kind": "test",
+  "domain": "clinic_request",
+  "action": "Audit",
+  "expect": "deny",
+  "ctx": {
+   "minConfidence": 100,
+   "options": 2,
+   "clinic_urgent": "yes",
+   "clinic_request": "symptom_question"
+  }
+ },
+ {
+  "name": "oracle: symptom question marked not urgent is flagged",
+  "kind": "test",
+  "domain": "clinic_request",
+  "action": "Audit",
+  "expect": "allow",
+  "ctx": {
+   "minConfidence": 100,
+   "options": 2,
+   "clinic_urgent": "no",
+   "clinic_request": "symptom_question"
+  },
+  "by": "oracle.clinic.symptoms-not-urgent",
+  "exact": true
+ },
+ {
+  "name": "oracle: a tennis draw is flagged (ontology: tennis has no draws)",
+  "kind": "test",
+  "domain": "sports_recap",
+  "action": "Audit",
+  "expect": "allow",
+  "ctx": {
+   "minConfidence": 100,
+   "options": 2,
+   "sport": "tennis",
+   "sport_result": "draw"
+  },
+  "by": "oracle.sports.draw-in-a-sport-without-draws",
+  "exact": true,
+  "refs": {
+   "sport": "Sport"
+  }
+ },
+ {
+  "name": "oracle: a soccer draw is coherent (ontology: soccer has draws)",
+  "kind": "test",
+  "domain": "sports_recap",
+  "action": "Audit",
+  "expect": "deny",
+  "ctx": {
+   "minConfidence": 100,
+   "options": 2,
+   "sport": "soccer",
+   "sport_result": "draw"
+  },
+  "refs": {
+   "sport": "Sport"
+  }
+ },
+ {
+  "name": "oracle: a tennis win is coherent",
+  "kind": "test",
+  "domain": "sports_recap",
+  "action": "Audit",
+  "expect": "deny",
+  "ctx": {
+   "minConfidence": 100,
+   "options": 2,
+   "sport": "tennis",
+   "sport_result": "win"
+  },
+  "refs": {
+   "sport": "Sport"
+  }
+ },
+ {
+  "name": "oracle: an upset in an upcoming game is flagged",
+  "kind": "test",
+  "domain": "sports_recap",
+  "action": "Audit",
+  "expect": "allow",
+  "ctx": {
+   "minConfidence": 100,
+   "options": 2,
+   "sport": "soccer",
+   "sport_result": "upcoming",
+   "sport_upset": "yes"
+  },
+  "by": "oracle.sports.upset-in-an-upcoming-game",
+  "exact": true,
+  "refs": {
+   "sport": "Sport"
+  }
+ },
+ {
+  "name": "oracle: low margin is flagged (news_topic)",
+  "kind": "test",
+  "domain": "news_topic",
+  "action": "Audit",
+  "expect": "allow",
+  "by": "oracle.low-margin",
+  "exact": true,
+  "ctx": {
+   "minConfidence": 100,
+   "options": 2,
+   "minMargin": 9
+  }
+ },
+ {
+  "name": "oracle: margin at the bar is not flagged (news_topic)",
+  "kind": "test",
+  "domain": "news_topic",
+  "action": "Audit",
+  "expect": "deny",
+  "ctx": {
+   "minConfidence": 100,
+   "options": 2,
+   "minMargin": 10
+  }
+ },
+ {
+  "name": "oracle: low margin is flagged (banking_intent)",
+  "kind": "test",
+  "domain": "banking_intent",
+  "action": "Audit",
+  "expect": "allow",
+  "by": "oracle.low-margin",
+  "exact": true,
+  "ctx": {
+   "minConfidence": 100,
+   "options": 2,
+   "minMargin": 9
+  }
+ },
+ {
+  "name": "oracle: margin at the bar is not flagged (banking_intent)",
+  "kind": "test",
+  "domain": "banking_intent",
+  "action": "Audit",
+  "expect": "deny",
+  "ctx": {
+   "minConfidence": 100,
+   "options": 2,
+   "minMargin": 10
+  }
  }
 ]

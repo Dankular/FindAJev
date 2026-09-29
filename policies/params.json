@@ -2,5 +2,6 @@
   "_doc": "Runtime parameters for the Cedar policies. `{{name}}` placeholders in policies/*.cedar are replaced with these values (override per run with --param name=value); every value must be an integer. The effective values are recorded in each result.",
   "min_conf_few": 60,
   "min_conf_many": 35,
-  "few_max_options": 4
+  "few_max_options": 4,
+  "oracle_margin": 10
 }
