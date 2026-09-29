@@ -1,6 +1,5 @@
 models/
 data/encoded/
-results/
 bin/
 obj/
 __pycache__/
