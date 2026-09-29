@@ -2525,5 +2525,184 @@
    "tests": 100
   },
   "by": "promote.forbid-slower"
+ },
+ {
+  "name": "turn: confident and paused: respond",
+  "kind": "turn",
+  "action": "Respond",
+  "expect": "allow",
+  "ctx": {
+   "p_complete": 90,
+   "silence_ms": 500,
+   "user_speaking": false,
+   "dangling": false
+  },
+  "by": "turn.respond.confident",
+  "exact": true
+ },
+ {
+  "name": "turn: confident but silence too short",
+  "kind": "turn",
+  "action": "Respond",
+  "expect": "deny",
+  "ctx": {
+   "p_complete": 90,
+   "silence_ms": 299,
+   "user_speaking": false,
+   "dangling": false
+  }
+ },
+ {
+  "name": "turn: silence exactly at the bar",
+  "kind": "turn",
+  "action": "Respond",
+  "expect": "allow",
+  "ctx": {
+   "p_complete": 90,
+   "silence_ms": 300,
+   "user_speaking": false,
+   "dangling": false
+  },
+  "by": "turn.respond.confident"
+ },
+ {
+  "name": "turn: p just under the bar: keep waiting",
+  "kind": "turn",
+  "action": "Respond",
+  "expect": "deny",
+  "ctx": {
+   "p_complete": 69,
+   "silence_ms": 500,
+   "user_speaking": false,
+   "dangling": false
+  }
+ },
+ {
+  "name": "turn: low p but long silence: stop waiting",
+  "kind": "turn",
+  "action": "Respond",
+  "expect": "allow",
+  "ctx": {
+   "p_complete": 10,
+   "silence_ms": 1500,
+   "user_speaking": false,
+   "dangling": false
+  },
+  "by": "turn.respond.timeout"
+ },
+ {
+  "name": "turn: never talk over the speaker",
+  "kind": "turn",
+  "action": "Respond",
+  "expect": "deny",
+  "ctx": {
+   "p_complete": 90,
+   "silence_ms": 500,
+   "user_speaking": true,
+   "dangling": false
+  },
+  "by": "turn.forbid.barge-in"
+ },
+ {
+  "name": "turn: long silence does not beat speech",
+  "kind": "turn",
+  "action": "Respond",
+  "expect": "deny",
+  "ctx": {
+   "p_complete": 90,
+   "silence_ms": 5000,
+   "user_speaking": true,
+   "dangling": false
+  },
+  "by": "turn.forbid.barge-in"
+ },
+ {
+  "name": "turn: dangling word blocks an early response",
+  "kind": "turn",
+  "action": "Respond",
+  "expect": "deny",
+  "ctx": {
+   "p_complete": 90,
+   "silence_ms": 500,
+   "user_speaking": false,
+   "dangling": true
+  },
+  "by": "turn.forbid.dangling-early"
+ },
+ {
+  "name": "turn: dangling word yields to a long silence",
+  "kind": "turn",
+  "action": "Respond",
+  "expect": "allow",
+  "ctx": {
+   "p_complete": 90,
+   "silence_ms": 1500,
+   "user_speaking": false,
+   "dangling": true
+  },
+  "by": "turn.respond.timeout"
+ },
+ {
+  "name": "turn: wait is always allowed",
+  "kind": "turn",
+  "action": "Wait",
+  "expect": "allow",
+  "ctx": {
+   "p_complete": 90,
+   "silence_ms": 500,
+   "user_speaking": true,
+   "dangling": false
+  },
+  "by": "turn.wait.default"
+ },
+ {
+  "name": "turn: backchannel in the uncertain band after a pause",
+  "kind": "turn",
+  "action": "Backchannel",
+  "expect": "allow",
+  "ctx": {
+   "p_complete": 50,
+   "silence_ms": 500,
+   "user_speaking": false,
+   "dangling": false
+  },
+  "by": "turn.backchannel.pause"
+ },
+ {
+  "name": "turn: no backchannel when the turn is probably done",
+  "kind": "turn",
+  "action": "Backchannel",
+  "expect": "deny",
+  "ctx": {
+   "p_complete": 70,
+   "silence_ms": 500,
+   "user_speaking": false,
+   "dangling": false
+  }
+ },
+ {
+  "name": "turn: no backchannel on a hopeless turn",
+  "kind": "turn",
+  "action": "Backchannel",
+  "expect": "deny",
+  "ctx": {
+   "p_complete": 29,
+   "silence_ms": 500,
+   "user_speaking": false,
+   "dangling": false
+  }
+ },
+ {
+  "name": "turn: no backchannel over speech",
+  "kind": "turn",
+  "action": "Backchannel",
+  "expect": "deny",
+  "ctx": {
+   "p_complete": 50,
+   "silence_ms": 500,
+   "user_speaking": true,
+   "dangling": false
+  },
+  "by": "turn.forbid.backchannel-over-speech"
  }
 ]

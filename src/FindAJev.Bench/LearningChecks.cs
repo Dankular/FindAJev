@@ -155,4 +155,55 @@ public static class LearningChecks
         o.Total = runs; o.Pass = runs - (leaks > 0 ? 1 : 0); o.Passed = leaks == 0; o.Details = details; o.Findings = findings;
         o.Summary = $"{runs} scenario runs over {sets.Count} set(s); leaks through the Cedar gate: {leaks} (must be 0)";
     }
+
+    // ---------------------------------------------------------------------------------------------------- turn taking
+    static Dictionary<string, Value> TurnCtx(long p, long sil, bool speaking, bool dangling) =>
+        new() { ["p_complete"] = p, ["silence_ms"] = sil, ["user_speaking"] = speaking, ["dangling"] = dangling };
+
+    /// <summary>Every boundary combination of the turn-taking policies vs an independent recomputation, plus monotonicity and "never interrupt speech".</summary>
+    public static void TurnProperties(string root, CheckOutcome o)
+    {
+        var pe = new PolicyEngine(Path.Combine(root, "policies"));
+        long minP = pe.Params["turn_min_p"], minSil = pe.Params["turn_min_silence_ms"], maxWait = pe.Params["turn_max_wait_ms"], bcP = pe.Params["turn_backchannel_p"];
+        var ps = new[] { 0L, bcP - 1, bcP, minP - 1, minP, 100 }; var sils = new[] { 0L, minSil - 1, minSil, maxWait - 1, maxWait, maxWait * 2 };
+        var findings = new List<string>(); int total = 0, bad = 0;
+        void Viol(string m) { bad++; if (findings.Count < 12) findings.Add(m); }
+        foreach (var sp in new[] { false, true }) foreach (var dg in new[] { false, true })
+        {
+            bool? prevRespond = null; // monotone in silence for a fixed p (checked below per p)
+            foreach (var p in ps)
+            {
+                bool? last = null;
+                foreach (var sil in sils)
+                {
+                    var c = TurnCtx(p, sil, sp, dg); var tag = $"p={p} silence={sil} speaking={sp} dangling={dg}";
+                    var r = pe.AuthorizeTurn("Respond", c); var w = pe.AuthorizeTurn("Wait", c); var b = pe.AuthorizeTurn("Backchannel", c); total += 3;
+                    if (r.Error is not null || w.Error is not null || b.Error is not null) { Viol("engine error " + tag); continue; }
+                    var wantR = !sp && !(dg && sil < maxWait) && ((p >= minP && sil >= minSil) || sil >= maxWait);
+                    var wantB = !sp && p < minP && p >= bcP && sil >= minSil;
+                    if (r.Allow != wantR) Viol($"Respond {tag}: cedar={r.Allow} expected={wantR}");
+                    if (b.Allow != wantB) Viol($"Backchannel {tag}: cedar={b.Allow} expected={wantB}");
+                    if (!w.Allow) Viol($"Wait must always be allowed: {tag}");
+                    if (sp && (r.Allow || b.Allow)) Viol($"assistant talks over the speaker: {tag}");
+                    if (!sp && last == true && !r.Allow) Viol($"Respond not monotone in silence: {tag}");   // more silence never turns an allowed Respond into a denial
+                    last = r.Allow || last == true;
+                }
+                prevRespond = null;
+            }
+            // monotone in p at fixed silence
+            foreach (var sil in sils)
+            {
+                bool seen = false;
+                foreach (var p in ps)
+                {
+                    var r = pe.AuthorizeTurn("Respond", TurnCtx(p, sil, false, dg)); total++;
+                    if (seen && !r.Allow) Viol($"Respond not monotone in p_complete: p={p} silence={sil} dangling={dg}");
+                    seen |= r.Allow;
+                }
+            }
+        }
+        o.Total = total; o.Pass = total - Math.Min(total, bad); o.Passed = bad == 0;
+        o.Summary = $"{total} requests over the boundary grid, {bad} disagreement(s) with the independent recomputation";
+        o.Findings = findings;
+    }
 }

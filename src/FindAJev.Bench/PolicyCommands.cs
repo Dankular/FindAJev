@@ -79,7 +79,7 @@ public static class PolicyCommands
             var action = c["action"]!.GetValue<string>();
             PolicyDecision d;
             var kind = c["kind"]!.GetValue<string>();
-            if (kind is "train" or "promote")
+            if (kind is "train" or "promote" or "turn")
             {
                 var tctx = new Dictionary<string, Value>();
                 foreach (var (k, v) in c["ctx"]!.AsObject())
@@ -87,7 +87,8 @@ public static class PolicyCommands
                     {
                         JsonValueKind.Number => (Value)v.GetValue<long>(), JsonValueKind.True => (Value)true, JsonValueKind.False => (Value)false, _ => (Value)v.GetValue<string>(),
                     };
-                d = kind == "train" ? pe.AuthorizeTrain(action, tctx["domain"] is StringValue sv ? sv.Value : "x", tctx)
+                d = kind == "turn" ? pe.AuthorizeTurn(action, tctx)
+                  : kind == "train" ? pe.AuthorizeTrain(action, tctx["domain"] is StringValue sv ? sv.Value : "x", tctx)
                                     : pe.AuthorizePromote(c["principal"]!.GetValue<string>(), "candidate", tctx);
             }
             else if (kind == "run")

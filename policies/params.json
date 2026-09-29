@@ -9,5 +9,9 @@
   "review_margin": 20,
   "promote_max_unsafe_rise_bp": 50,
   "promote_max_suite_drop_bp": 100,
-  "promote_max_latency_pct": 130
+  "promote_max_latency_pct": 130,
+  "turn_min_p": 70,
+  "turn_min_silence_ms": 300,
+  "turn_max_wait_ms": 1500,
+  "turn_backchannel_p": 30
 }

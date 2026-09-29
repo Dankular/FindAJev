@@ -41,6 +41,7 @@ public static class CedarChecks
         new("admission-properties", "Training-data admission", "Learning loop: every combination of consent, licence, PII, flags, consensus, confidence and margin through the admission and review policies, against an independent recomputation; nothing private, unlicensed or self-labelled-and-suspect may be admitted.", true),
         new("promotion-gate", "Promotion gate", "Learning loop: every boundary combination of the promotion policy against an independent recomputation (a learner never promotes, no regression on safety, held-out or latency), plus a demo on real results.", true),
         new("curation-sim", "Curation simulator", "Learning loop: replay logged predictions (synthetic + recorded runs) through the admission policy; measures label noise, yield and errors caught against gold, and audits independently that no forbidden example leaked.", true),
+        new("turn-properties", "Turn-taking policy", "Every boundary combination of P(complete) x silence x speaking x dangling through the turn-taking policies vs an independent recomputation; never talk over the speaker; monotone in silence and probability.", true),
         new("bench", "Cedar latency", "Authorization latency per domain pack (CedarDotNet re-sends the policy set on every call).", false),
     };
 
@@ -83,6 +84,7 @@ public static class CedarChecks
             case "admission-properties": LearningChecks.AdmissionProperties(root, o); break;
             case "promotion-gate": LearningChecks.PromotionGate(root, o); break;
             case "curation-sim": LearningChecks.CurationSim(root, o); break;
+            case "turn-properties": LearningChecks.TurnProperties(root, o); break;
             case "bench": Bench(pe, root, o); break;
             default: throw new ArgumentException($"unknown check '{id}'; available: {string.Join(", ", All.Select(c => c.Id))}");
         }

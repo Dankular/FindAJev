@@ -160,6 +160,19 @@ switch (argv.FirstOrDefault())
         return leaked ? 1 : 0;
     }
 
+    case "turn-decide": // turn-decide --p 0-100 --silence MS [--speaking] [--dangling]: what may the assistant do right now?
+    {
+        var c = new Dictionary<string, CedarDotNet.Values.Value>
+        {
+            ["p_complete"] = long.Parse(Opt("--p", "50")), ["silence_ms"] = long.Parse(Opt("--silence", "0")),
+            ["user_speaking"] = argv.Contains("--speaking"), ["dangling"] = argv.Contains("--dangling"),
+        };
+        var tpe = new PolicyEngine(Path.Combine(root, "policies"));
+        var ds = new[] { "Respond", "Backchannel", "Wait" }.Select(a => tpe.AuthorizeTurn(a, c)).ToList();
+        Console.WriteLine(JsonSerializer.Serialize(new { decisions = ds.Select(d => new { action = d.Action, allow = d.Allow, by = d.Reasons, error = d.Error }) }));
+        return 0;
+    }
+
     case "ledger-verify":
     {
         var (ok, n, problem) = Ledger.Verify(root);

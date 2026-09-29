@@ -68,6 +68,8 @@ type TrainCtx = {
   margin: Long             // 0-100
 };
 // A candidate model versus the current champion, both measured by this harness. Deltas are in basis points (1/100 of a percentage point).
+// Turn-taking: has the person finished speaking? p_complete is the text detector's probability (0-100, uncalibrated); silence_ms comes from the audio front end.
+type TurnCtx = { p_complete: Long, silence_ms: Long, user_speaking: Bool, dangling: Bool };
 type PromoteCtx = {
   human_approved: Bool, comparable: Bool,
   d_core_acc_bp: Long, d_worst_suite_acc_bp: Long, d_unsafe_bp: Long, d_overblocked_bp: Long, held_out_delta_bp: Long,
@@ -116,3 +118,7 @@ action Promote appliesTo { principal: [Human, Learner], resource: [ModelVersion]
 // Harness-level actions guarding the run lifecycle.
 action FetchModel appliesTo { principal: [Runner], resource: [Model], context: RunCtx };
 action RunModel appliesTo { principal: [Runner], resource: [Model], context: RunCtx };
+// Turn-taking actions: take the floor, keep listening, or give a short acknowledgement.
+action Respond appliesTo { principal: [Session], resource: [Item], context: TurnCtx };
+action Wait appliesTo { principal: [Session], resource: [Item], context: TurnCtx };
+action Backchannel appliesTo { principal: [Session], resource: [Item], context: TurnCtx };

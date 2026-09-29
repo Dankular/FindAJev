@@ -29,6 +29,7 @@ public sealed class PolicyEngine
     readonly Dictionary<string, string> _run = new();    // id -> text, run-lifecycle policies
     readonly Dictionary<string, string> _oracle = new(); // id -> text, label-free oracle rules (Action::"Audit")
     readonly Dictionary<string, PolicySet> _oracleByDomain = new();
+    readonly Dictionary<string, string> _turn = new();    // turn-taking (Respond / Wait / Backchannel)
     readonly Dictionary<string, string> _train = new();   // learning loop: training-data admission (Admit / Review)
     readonly Dictionary<string, string> _promote = new(); // learning loop: candidate-model promotion (Promote)
     readonly List<Entity> _ontology = new();
@@ -40,6 +41,7 @@ public sealed class PolicyEngine
     public IReadOnlyDictionary<string, string> RunPolicies => _run;
     public IReadOnlyDictionary<string, string> OraclePolicies => _oracle;
     public IReadOnlyDictionary<string, string> TrainPolicies => _train;
+    public IReadOnlyDictionary<string, string> TurnPolicies => _turn;
     public IReadOnlyDictionary<string, string> PromotePolicies => _promote;
 
     /// <summary>Effective policy parameters (params.json + overrides).</summary>
@@ -79,7 +81,7 @@ public sealed class PolicyEngine
         {
             var fname = Path.GetFileName(file);
             var target = fname == "run.cedar" ? _run : fname.StartsWith("oracle") ? _oracle : fname.StartsWith("training") ? _train
-                       : fname.StartsWith("promote") ? _promote : _test;
+                       : fname.StartsWith("turn") ? _turn : fname.StartsWith("promote") ? _promote : _test;
             var source = ParamRx.Replace(File.ReadAllText(file), m =>
                 pp.TryGetValue(m.Groups[1].Value, out var val) ? val.ToString() : throw new InvalidDataException($"{file}: unknown parameter {{{{{m.Groups[1].Value}}}}}"));
             foreach (var text in CedarUtilities.LoadPolicySet(source))
@@ -120,7 +122,7 @@ public sealed class PolicyEngine
     public List<string> Validate()
     {
         var problems = new List<string>();
-        foreach (var (name, set) in new[] { ("test", _test), ("run", _run), ("oracle", _oracle), ("training", _train), ("promote", _promote) })
+        foreach (var (name, set) in new[] { ("test", _test), ("run", _run), ("oracle", _oracle), ("training", _train), ("promote", _promote), ("turn", _turn) })
         {
             var call = new JsonObject
             {
@@ -219,6 +221,13 @@ public sealed class PolicyEngine
     {
         var example = new Entity { Uid = EntityUid.Create("Example", "e"), Attrs = new Dictionary<string, Value> { ["domain"] = domain } };
         return Call(action, Curator, example, null, ctx, new PolicySet { StaticPolicies = _train });
+    }
+
+    /// <summary>Turn-taking: may the assistant Respond / Wait / Backchannel now? ctx: see TurnCtx in the schema.</summary>
+    public PolicyDecision AuthorizeTurn(string action, Dictionary<string, Value> ctx)
+    {
+        var item = new Entity { Uid = EntityUid.Create("Item", "turn"), Attrs = new Dictionary<string, Value> { ["domain"] = "turn" } };
+        return Call(action, EntityUid.Create("Session", "call"), item, null, ctx, new PolicySet { StaticPolicies = _turn });
     }
 
     /// <summary>Learning loop: may this principal (Human or Learner) promote a candidate model? ctx: see PromoteCtx in the schema.</summary>

@@ -20,6 +20,7 @@ The *gate* checks (`policy-validate`, `golden-cases`, `conformance`) run before 
 | `admission-properties` | ✅ | learning loop: every combination of consent/licence/PII/flag/consensus/confidence/margin through `training.cedar` vs an independent recomputation (10k requests) |
 | `promotion-gate` | ✅ | learning loop: boundary grid of `promote.cedar` vs an independent recomputation (2.6k combinations) + demo on real results |
 | `curation-sim` | ✅ | learning loop: replays logged predictions through admission; label noise, yield, errors caught; independent leak audit must be 0 (see `docs/LEARNING_LOOP.md`) |
+| `turn-properties` | ✅ | turn-taking (`turn.cedar`, `turn/README.md`): boundary grid vs an independent recomputation; never talks over the speaker |
 | `bench` | | Cedar authorization latency per pack |
 
 Current state: 76 policies (incl. admission + promotion), 13 packs, 176 golden cases, 115 conformance cases, Cedar 4.13.0 (language 4.5), mutation score 98/98.
