@@ -12,7 +12,7 @@ ENV DOTNET_CLI_TELEMETRY_OPTOUT=1 DOTNET_NOLOGO=1 PYTHONUNBUFFERED=1 HF_HOME=/ap
 WORKDIR /app
 
 COPY requirements.txt .
-RUN pip3 install --no-cache-dir --break-system-packages -r requirements.txt fastapi "uvicorn[standard]"
+RUN pip3 install --no-cache-dir --break-system-packages -r requirements.txt fastapi "uvicorn[standard]" "gradio==6.28.0"
 
 COPY third_party ./third_party
 COPY --from=cedar /w/ffi/target/release/libcedar_dotnet_ffi.so ./third_party/CedarDotNet/src/CedarDotNet/runtimes/linux-x64/native/
@@ -20,7 +20,7 @@ COPY src ./src
 RUN dotnet build src/FindAJev.Bench -c Release -o bin -v q
 
 COPY policies ./policies
-COPY models.json server.py dashboard.html PROJECT.md ./
+COPY models.json server.py ui.py PROJECT.md ./
 COPY tools ./tools
 COPY results ./results
 # Fail the image build if the policies do not validate or a golden case regresses.

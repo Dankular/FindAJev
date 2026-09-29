@@ -3,7 +3,7 @@
 If the API_KEY environment variable (a Space secret) is set, the endpoints that start work (POST /run, /run-all) require
 `Authorization: Bearer <API_KEY>`. Reads (leaderboard, results, jobs, SSE, dashboard) are public.
 
-Live view: the harness writes `EVENT {json}` lines (state-machine graphs, per-test transitions, Cedar decisions). This server folds
+Dashboard: a Gradio app (ui.py) is mounted at "/" and is the live view. The harness writes `EVENT {json}` lines (state-machine graphs, per-test transitions, Cedar decisions). This server folds
 them into a `Live` object and streams it to the dashboard over SSE (`/live`), with per-test detail at `/tests/{i}`.
 
 Results are kept in results/ and, when HF_TOKEN + RESULTS_REPO (a dataset repo id) are set, mirrored to that dataset so they
@@ -14,7 +14,7 @@ from pathlib import Path
 from typing import Optional
 
 from fastapi import Depends, FastAPI, Header, HTTPException
-from fastapi.responses import FileResponse, HTMLResponse, StreamingResponse
+from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
 
 ROOT = Path(os.environ.get("FINDAJEV_ROOT", Path(__file__).parent)).resolve()
@@ -116,6 +116,13 @@ class Live:
                     self.recent_seq += 1
                     self.recent.append({"seq": self.recent_seq, "i": ev["i"], "k": ev["k"], "to": ev["to"],
                                         "heads": ev.get("heads"), "acts": ev.get("acts"), "err": ev.get("err")})
+
+    def view(self):
+        """A consistent copy of everything the Gradio dashboard renders."""
+        with self.lock:
+            return {"model": self.model, "runState": self.run_state, "runPolicy": list(self.run_policy), "graphs": dict(self.graphs),
+                    "plan": self.plan, "states": bytes(self.states), "counts": dict(self.counts), "edges": dict(self.edges),
+                    "policyHits": {k: dict(v) for k, v in self.policy_hits.items()}, "recent": list(self.recent)}
 
     def init_payload(self):
         with self.lock:
@@ -260,7 +267,7 @@ def start_job(request: dict, reqs: list):
             _lock.release()
 
     threading.Thread(target=go, daemon=True).start()
-    return {"job": jid, "poll": f"/jobs/{jid}", "events": f"/jobs/{jid}/events", "live": "/live", "dashboard": "/dashboard"}
+    return {"job": jid, "poll": f"/jobs/{jid}", "events": f"/jobs/{jid}/events", "live": "/live", "dashboard": "/"}
 
 
 # ---------------------------------------------------------------------------------------------- progress + ETA
@@ -350,31 +357,7 @@ async def live_stream():
 
 SSE_HEADERS = {"Cache-Control": "no-cache", "X-Accel-Buffering": "no", "Connection": "keep-alive"}
 
-PAGE = """<!doctype html><meta charset=utf-8><meta name=viewport content="width=device-width,initial-scale=1">
-<title>FindAJev ranking</title>
-<style>body{font:15px system-ui;margin:2rem auto;max-width:70rem;padding:0 1rem}pre{overflow:auto;background:#8881;padding:1rem;border-radius:6px}</style>
-<h1>FindAJev</h1><p>CPU ranking of typed-decision models on this Space. <a href=/dashboard>live dashboard</a> · <a href=/docs>API</a> · <a href=/results>raw results</a> · <a href=/jobs>jobs</a></p>
-<pre id=s>idle</pre><pre id=r>loading…</pre>
-<script>
-const load=()=>fetch('/ranking').then(r=>r.json()).then(j=>r.textContent=j.markdown||'no results yet');load();
-const es=new EventSource('/events');
-es.addEventListener('progress',e=>{const d=JSON.parse(e.data),p=d.progress||{};
- s.textContent=`${d.status} ${d.current||''} ${p.phase||''} ${p.done||0}/${p.total||0} ${d.percent??''}%  ETA current ${d.eta.current_s??'?'}s, queued ${d.eta.queued_s}s (+unknown: ${d.eta.queued_unknown.join(', ')||'none'})`});
-es.addEventListener('done',e=>{es.close();load()});
-</script>"""
-
-
 # ---------------------------------------------------------------------------------------------- endpoints
-@app.get("/", response_class=HTMLResponse)
-def root():
-    return PAGE
-
-
-@app.get("/dashboard")
-def dashboard():
-    return FileResponse(Path(__file__).parent / "dashboard.html", media_type="text/html")
-
-
 @app.get("/favicon.ico", include_in_schema=False)
 def favicon():
     from fastapi import Response
@@ -473,3 +456,12 @@ def ranking():
     except (OSError, subprocess.SubprocessError) as e:
         raise HTTPException(503, f"ranking unavailable: {e}")
     return {"markdown": p.stdout}
+
+
+# ---------------------------------------------------------------------------------------------- Gradio dashboard at "/"
+# Mounted last so every API route above keeps priority.
+import sys
+import gradio as gr
+import ui
+
+app = gr.mount_gradio_app(app, ui.build_ui(sys.modules[__name__]), path="/")
