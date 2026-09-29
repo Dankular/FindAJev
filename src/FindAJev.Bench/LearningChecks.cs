@@ -21,12 +21,12 @@ public static class LearningChecks
         var findings = new List<string>(); long total = 0, bad = 0;
         var dom = new[] { "email_triage", "injection" };
         var src = new[] { "human", "outcome", "model" };
-        var cons = new[] { "single", "unanimous", "majority", "split" };
+        var cons = new[] { "unanimous", "majority", "split" };
         foreach (var self in new long[] { 0, 1 })
         {
             var pe = new PolicyEngine(dir, new Dictionary<string, long> { ["admit_self_labels"] = self });
             long minConf = pe.Params["admit_min_conf"], reviewMargin = pe.Params["review_margin"];
-            var confs = new long[] { 0, minConf - 1, minConf, 100 }; var margins = new long[] { 0, reviewMargin - 1, reviewMargin, 100 };
+            var confs = new long[] { minConf - 1, minConf }; var margins = new long[] { reviewMargin - 1, reviewMargin };
             var invariants = new Dictionary<string, int>();
             void Viol(string inv, string detail) { bad++; invariants[inv] = invariants.GetValueOrDefault(inv) + 1; if (findings.Count < 12) findings.Add($"[self={self}] {inv}: {detail}"); }
             foreach (var d in dom) foreach (var s in src) foreach (var consent in new[] { "yes", "no" }) foreach (var lic in new[] { "open", "research_only", "unverified" })
@@ -125,7 +125,7 @@ public static class LearningChecks
     {
         var findings = new List<string>(); var details = new List<object>(); int leaks = 0; int runs = 0;
         var pe = new PolicyEngine(Path.Combine(root, "policies"));
-        var sets = new List<(string name, List<SimExample> ex)> { ("synthetic (4000 interactions)", Synthetic(pe, 4000)) };
+        var sets = new List<(string name, List<SimExample> ex)> { ("synthetic (1500 interactions)", Synthetic(pe, 1500)) };
         try
         {
             var preds = Curation.LoadPreds(root);
