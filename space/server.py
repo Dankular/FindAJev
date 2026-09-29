@@ -1,23 +1,31 @@
 """HTTP API around the FindAJev harness. One benchmark job at a time (parallel jobs would corrupt each other's timings).
 
 If the API_KEY environment variable (a Space secret) is set, the endpoints that start work (POST /run, /run-all) require
-`Authorization: Bearer <API_KEY>`. Reads (leaderboard, results, jobs, SSE) are public.
+`Authorization: Bearer <API_KEY>`. Reads (leaderboard, results, jobs, SSE, dashboard) are public.
+
+Live view: the harness writes `EVENT {json}` lines (state-machine graphs, per-test transitions, Cedar decisions). This server folds
+them into a `Live` object and streams it to the dashboard over SSE (`/live`), with per-test detail at `/tests/{i}`.
 
 Results are kept in results/ and, when HF_TOKEN + RESULTS_REPO (a dataset repo id) are set, mirrored to that dataset so they
 survive Space restarts.
 """
-import asyncio, json, os, subprocess, threading, time, uuid
+import asyncio, base64, collections, json, os, subprocess, threading, time, uuid
 from pathlib import Path
 from typing import Optional
 
 from fastapi import Depends, FastAPI, Header, HTTPException
-from fastapi.responses import HTMLResponse, StreamingResponse
+from fastapi.responses import FileResponse, HTMLResponse, StreamingResponse
 from pydantic import BaseModel, Field
 
 ROOT = Path(os.environ.get("FINDAJEV_ROOT", Path(__file__).parent)).resolve()
 DLL = ROOT / "bin" / "FindAJev.Bench.dll"
 REGISTRY = {m["id"]: m for m in json.loads((ROOT / "models.json").read_text())}
 DATASET_SIZE = 2600  # single-label decisions in fastino/fast-decisions (see tools/encode.py)
+
+# Leaf states of the per-test machine, in the order used for the compact per-test state codes sent to the dashboard.
+TEST_STATES = ["Queued", "Inferring", "Enforcing", "Correct", "WrongButSafe", "Overblocked", "Unsafe", "Misclassified", "Errored"]
+CODE = {s: i for i, s in enumerate(TEST_STATES)}
+
 
 def cpu_info():
     """CPUs this container may actually use. os.cpu_count() reports the host's cores, which can exceed the cgroup quota."""
@@ -43,9 +51,88 @@ def cpu_info():
 
 CPUS = cpu_info()["usable_cpus"]
 
-app = FastAPI(title="FindAJev", description="CPU benchmark of typed-decision models")
+app = FastAPI(title="FindAJev", description="CPU benchmark of typed-decision models, with Cedar policy enforcement")
 _lock = threading.Lock()
 _jobs: dict[str, dict] = {}
+
+
+# ---------------------------------------------------------------------------------------------- live state
+class Live:
+    """Everything the dashboard shows, folded from harness events. Thread-safe: ingest() runs on the job thread, readers on SSE tasks."""
+
+    def __init__(self):
+        self.lock = threading.Lock()
+        self.epoch = 0                      # bumps on every new model (new plan), telling clients to re-init
+        self.reset(None)
+
+    def reset(self, model):
+        self.model = model
+        self.graphs = getattr(self, "graphs", {})
+        self.run_state = "Pending"
+        self.run_policy = []                # Cedar decisions for FetchModel / RunModel
+        self.plan = None
+        self.states = bytearray()
+        self.counts = collections.Counter()
+        self.edges = collections.Counter()  # "From>To" -> transitions observed
+        self.log = []                       # (test index, state code) in arrival order; clients keep a cursor into it
+        self.verdicts = {}
+        self.policy_hits = {}               # policy id -> {"allow": n, "deny": n} over pred-side decisions
+        self.recent = collections.deque(maxlen=40)   # latest Unsafe / Overblocked / Errored verdict summaries
+        self.recent_seq = 0
+
+    def ingest(self, ev):
+        kind = ev.get("e")
+        with self.lock:
+            if kind == "graph":
+                self.graphs[ev["name"]] = ev
+            elif kind == "run":
+                self.run_state = ev["to"]
+                self.model = ev["model"]
+            elif kind == "policy":
+                self.run_policy.append({k: ev[k] for k in ("action", "allow", "by")})
+            elif kind == "plan":
+                n = ev["tests"]
+                self.epoch += 1
+                self.plan = {"tests": n, "suites": ev["suites"], "domains": ev["domains"],
+                         "packDomains": ev.get("packDomains", {}), "keys": ev["keys"]}
+                self.states = bytearray(n)      # all zero == Queued
+                self.counts = collections.Counter({"Queued": n})
+                self.edges, self.log, self.verdicts = collections.Counter(), [], {}
+                self.policy_hits, self.recent = {}, collections.deque(maxlen=40)
+            elif kind == "test" and self.plan:
+                i, frm, to = ev["i"], ev["from"], ev["to"]
+                self.states[i] = CODE[to]
+                self.counts[frm] -= 1
+                self.counts[to] += 1
+                self.edges[f"{frm}>{to}"] += 1
+                self.log.append((i, CODE[to]))
+            elif kind == "verdict":
+                self.verdicts[ev["i"]] = ev
+                for a in ev.get("acts", []):
+                    for pid in a["by"]:
+                        h = self.policy_hits.setdefault(pid, {"allow": 0, "deny": 0})
+                        h["allow" if a["p"] else "deny"] += 1
+                if ev["to"] in ("Unsafe", "Overblocked", "Errored"):
+                    self.recent_seq += 1
+                    self.recent.append({"seq": self.recent_seq, "i": ev["i"], "k": ev["k"], "to": ev["to"],
+                                        "heads": ev.get("heads"), "acts": ev.get("acts"), "err": ev.get("err")})
+
+    def init_payload(self):
+        with self.lock:
+            return {"epoch": self.epoch, "model": self.model, "runState": self.run_state, "runPolicy": self.run_policy,
+                    "graphs": self.graphs, "plan": self.plan, "counts": dict(self.counts), "edges": dict(self.edges),
+                    "states": base64.b64encode(bytes(self.states)).decode(), "cursor": len(self.log),
+                    "policyHits": self.policy_hits, "recent": list(self.recent), "codes": TEST_STATES}
+
+    def delta(self, cursor, recent_seq):
+        with self.lock:
+            new = self.log[cursor:]
+            return {"epoch": self.epoch, "model": self.model, "runState": self.run_state, "runPolicy": self.run_policy,
+                    "counts": dict(self.counts), "edges": dict(self.edges), "changes": new, "cursor": len(self.log),
+                    "policyHits": self.policy_hits, "recent": [r for r in self.recent if r["seq"] > recent_seq]}
+
+
+LIVE = Live()
 
 
 # ---------------------------------------------------------------------------------------------- persistence
@@ -102,8 +189,23 @@ def sh(cmd, log, on_line=None):
 
 
 def run_one(req: RunRequest, job):
-    """Fetch, encode and benchmark one model. Returns the result dict, or raises. Does not touch the lock."""
+    """Cedar pre-flight, fetch, encode and benchmark one model. Returns the result dict, or raises. Does not touch the lock."""
     m, log = REGISTRY[req.model], job["log"]
+    LIVE.reset(req.model)
+
+    job["stage"] = f"{req.model}: policy check"
+    chk = subprocess.run(["dotnet", str(DLL), "check", req.model, "--threads", str(req.threads), "--cpus", str(CPUS)],
+                         cwd=ROOT, capture_output=True, text=True)
+    try:
+        decisions = json.loads(chk.stdout.strip().splitlines()[-1])["decisions"]
+        for d in decisions:
+            LIVE.ingest({"e": "policy", "action": d["action"], "allow": d["allow"], "by": d["by"]})
+    except (ValueError, IndexError, KeyError):
+        decisions = []
+    if chk.returncode != 0:
+        why = [f'{d["action"]} denied ({", ".join(d["by"]) or "no permit policy matched"})' for d in decisions if not d["allow"]]
+        raise RuntimeError("Cedar denied before download: " + ("; ".join(why) or chk.stderr[-300:] or "check failed"))
+
     job["stage"] = f"{req.model}: fetch"
     if sh(["python3", "tools/fetch.py", req.model], log):
         raise RuntimeError("fetch failed")
@@ -117,8 +219,14 @@ def run_one(req: RunRequest, job):
         if line.startswith("PROGRESS "):
             job["progress"] = dict(json.loads(line[9:]), updated=time.time())
             return True
+        if line.startswith("EVENT "):
+            try:
+                LIVE.ingest(json.loads(line[6:]))
+            except (ValueError, KeyError) as e:
+                log.append(f"bad event: {e}")
+            return True
 
-    sh(["dotnet", str(DLL), "run", req.model, "--threads", str(req.threads), "--limit", str(req.limit),
+    sh(["dotnet", str(DLL), "run", req.model, "--threads", str(req.threads), "--cpus", str(CPUS), "--limit", str(req.limit),
         "--warmup", str(req.warmup)], log, on_line)
     f = ROOT / "results" / f"{req.model}.t{req.threads}.json"
     if not f.exists():
@@ -152,7 +260,7 @@ def start_job(request: dict, reqs: list):
             _lock.release()
 
     threading.Thread(target=go, daemon=True).start()
-    return {"job": jid, "poll": f"/jobs/{jid}", "events": f"/jobs/{jid}/events"}
+    return {"job": jid, "poll": f"/jobs/{jid}", "events": f"/jobs/{jid}/events", "live": "/live", "dashboard": "/dashboard"}
 
 
 # ---------------------------------------------------------------------------------------------- progress + ETA
@@ -213,12 +321,39 @@ async def sse(job):
         await asyncio.sleep(1)
 
 
+async def live_stream():
+    """Dashboard stream: `init` (full state) then `delta` (only what changed) at ~4 Hz; re-inits when a new model starts."""
+    init = LIVE.init_payload()
+    epoch, cursor, recent_seq = init["epoch"], init["cursor"], LIVE.recent_seq
+    yield f"event: init\ndata: {json.dumps(init)}\n\n"
+    idle = 0
+    while True:
+        await asyncio.sleep(0.25)
+        job = list(_jobs.values())[-1] if _jobs else None
+        if LIVE.epoch != epoch:
+            init = LIVE.init_payload()
+            epoch, cursor, recent_seq = init["epoch"], init["cursor"], LIVE.recent_seq
+            yield f"event: init\ndata: {json.dumps(init)}\n\n"
+            continue
+        d = LIVE.delta(cursor, recent_seq)
+        cursor = d["cursor"]
+        if d["recent"]:
+            recent_seq = d["recent"][-1]["seq"]
+        d["job"] = snapshot(job) if job else None
+        payload = json.dumps(d)
+        if d["changes"] or d["recent"] or idle >= 4:   # heartbeat every ~1 s carries progress / ETA even when no test moved
+            yield f"event: delta\ndata: {payload}\n\n"
+            idle = 0
+        else:
+            idle += 1
+
+
 SSE_HEADERS = {"Cache-Control": "no-cache", "X-Accel-Buffering": "no", "Connection": "keep-alive"}
 
 PAGE = """<!doctype html><meta charset=utf-8><meta name=viewport content="width=device-width,initial-scale=1">
 <title>FindAJev ranking</title>
 <style>body{font:15px system-ui;margin:2rem auto;max-width:70rem;padding:0 1rem}pre{overflow:auto;background:#8881;padding:1rem;border-radius:6px}</style>
-<h1>FindAJev</h1><p>CPU ranking of typed-decision models on this Space. <a href=/docs>API</a> · <a href=/results>raw results</a> · <a href=/jobs>jobs</a></p>
+<h1>FindAJev</h1><p>CPU ranking of typed-decision models on this Space. <a href=/dashboard>live dashboard</a> · <a href=/docs>API</a> · <a href=/results>raw results</a> · <a href=/jobs>jobs</a></p>
 <pre id=s>idle</pre><pre id=r>loading…</pre>
 <script>
 const load=()=>fetch('/ranking').then(r=>r.json()).then(j=>r.textContent=j.markdown||'no results yet');load();
@@ -233,6 +368,17 @@ es.addEventListener('done',e=>{es.close();load()});
 @app.get("/", response_class=HTMLResponse)
 def root():
     return PAGE
+
+
+@app.get("/dashboard")
+def dashboard():
+    return FileResponse(Path(__file__).parent / "dashboard.html", media_type="text/html")
+
+
+@app.get("/favicon.ico", include_in_schema=False)
+def favicon():
+    from fastapi import Response
+    return Response(status_code=204)
 
 
 @app.get("/info")
@@ -254,7 +400,7 @@ def run(req: RunRequest):
 
 @app.post("/run-all", status_code=202, dependencies=[Depends(auth)])
 def run_all(threads: int = CPUS, limit: int = 0, warmup: int = 20, skip_done: bool = False):
-    """Benchmark every registry model sequentially; follow the returned job via its SSE stream.
+    """Benchmark every registry model sequentially; follow the returned job via /live or its SSE stream.
     skip_done=true skips models that already have a Scored result for the same threads and decision count."""
     def done(m):
         f = ROOT / "results" / f"{m}.t{threads}.json"
@@ -297,6 +443,22 @@ def latest_events():
                     result=[], progress=None, queue=[], request={})
         return StreamingResponse(sse(idle), media_type="text/event-stream", headers=SSE_HEADERS)
     return StreamingResponse(sse(list(_jobs.values())[-1]), media_type="text/event-stream", headers=SSE_HEADERS)
+
+
+@app.get("/live")
+def live():
+    """Dashboard SSE: per-test state machine transitions, Cedar decisions, progress and ETA."""
+    return StreamingResponse(live_stream(), media_type="text/event-stream", headers=SSE_HEADERS)
+
+
+@app.get("/tests/{i}")
+def test_detail(i: int):
+    """Verdict detail for one test of the current model: labels (model vs gold) and every Cedar decision with policy ids."""
+    with LIVE.lock:
+        v = LIVE.verdicts.get(i)
+    if v is None:
+        raise HTTPException(404, "no verdict for this test (yet)")
+    return v
 
 
 @app.get("/results")

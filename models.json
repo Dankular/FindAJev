@@ -9,7 +9,9 @@
       "gliner_onnx.py"
     ],
     "onnx": "models/gliner2.5-decide-onnx/model_int8.onnx",
-    "precision": "int8"
+    "precision": "int8",
+    "license": "apache-2.0",
+    "sizeMb": 643
   },
   {
     "id": "gliner25-decide-fp32",
@@ -21,7 +23,9 @@
       "gliner_onnx.py"
     ],
     "onnx": "models/gliner2.5-decide-onnx/model.onnx",
-    "precision": "fp32"
+    "precision": "fp32",
+    "license": "apache-2.0",
+    "sizeMb": 1746
   },
   {
     "id": "gliner25-decide-fp16",
@@ -33,7 +37,9 @@
       "gliner_onnx.py"
     ],
     "onnx": "models/gliner2.5-decide-onnx/model_fp16.onnx",
-    "precision": "fp16"
+    "precision": "fp16",
+    "license": "apache-2.0",
+    "sizeMb": 874
   },
   {
     "id": "julia-1-fp32",
@@ -46,7 +52,9 @@
       "tokenizer_config.json"
     ],
     "onnx": "models/Julia-1-ONNX/model.onnx",
-    "precision": "fp32"
+    "precision": "fp32",
+    "license": "apache-2.0",
+    "sizeMb": 580
   },
   {
     "id": "laya-fp32",
@@ -60,6 +68,8 @@
       "tokenizer/tokenizer_config.json"
     ],
     "onnx": "models/laya-onnx/laya.onnx",
-    "precision": "fp32"
+    "precision": "fp32",
+    "license": "apache-2.0",
+    "sizeMb": 1689
   }
 ]

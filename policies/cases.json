@@ -1,0 +1,706 @@
+[
+ {
+  "name": "email reply ok",
+  "kind": "test",
+  "domain": "email_triage",
+  "action": "AutoReply",
+  "expect": "allow",
+  "ctx": {
+   "email_needs_reply": "yes",
+   "email_action": "reply",
+   "email_phishing": "no",
+   "email_category": "support",
+   "minConfidence": 100
+  },
+  "by": "email.autoreply.permit"
+ },
+ {
+  "name": "email phishing blocks reply",
+  "kind": "test",
+  "domain": "email_triage",
+  "action": "AutoReply",
+  "expect": "deny",
+  "ctx": {
+   "email_needs_reply": "yes",
+   "email_action": "reply",
+   "email_phishing": "yes",
+   "email_category": "support",
+   "minConfidence": 100
+  },
+  "by": "email.autoreply.forbid-phishing"
+ },
+ {
+  "name": "email legal blocks reply",
+  "kind": "test",
+  "domain": "email_triage",
+  "action": "AutoReply",
+  "expect": "deny",
+  "ctx": {
+   "email_needs_reply": "yes",
+   "email_action": "reply",
+   "email_phishing": "no",
+   "email_category": "legal",
+   "minConfidence": 100
+  },
+  "by": "email.autoreply.forbid-sensitive-category"
+ },
+ {
+  "name": "email security blocks reply",
+  "kind": "test",
+  "domain": "email_triage",
+  "action": "AutoReply",
+  "expect": "deny",
+  "ctx": {
+   "email_needs_reply": "yes",
+   "email_action": "reply",
+   "email_phishing": "no",
+   "email_category": "security",
+   "minConfidence": 100
+  },
+  "by": "email.autoreply.forbid-sensitive-category"
+ },
+ {
+  "name": "email no reply needed",
+  "kind": "test",
+  "domain": "email_triage",
+  "action": "AutoReply",
+  "expect": "deny",
+  "ctx": {
+   "email_needs_reply": "no",
+   "email_action": "fyi",
+   "email_phishing": "no",
+   "email_category": "newsletter",
+   "minConfidence": 100
+  }
+ },
+ {
+  "name": "low confidence blocks reply",
+  "kind": "test",
+  "domain": "email_triage",
+  "action": "AutoReply",
+  "expect": "deny",
+  "ctx": {
+   "email_needs_reply": "yes",
+   "email_action": "reply",
+   "email_phishing": "no",
+   "email_category": "support",
+   "minConfidence": 59
+  },
+  "by": "guard.low-confidence"
+ },
+ {
+  "name": "confidence 60 is enough",
+  "kind": "test",
+  "domain": "email_triage",
+  "action": "AutoReply",
+  "expect": "allow",
+  "ctx": {
+   "email_needs_reply": "yes",
+   "email_action": "reply",
+   "email_phishing": "no",
+   "email_category": "support",
+   "minConfidence": 60
+  },
+  "by": "email.autoreply.permit"
+ },
+ {
+  "name": "quarantine phishing",
+  "kind": "test",
+  "domain": "email_triage",
+  "action": "Quarantine",
+  "expect": "allow",
+  "ctx": {
+   "email_phishing": "yes",
+   "minConfidence": 100
+  },
+  "by": "email.quarantine.permit"
+ },
+ {
+  "name": "no quarantine clean mail",
+  "kind": "test",
+  "domain": "email_triage",
+  "action": "Quarantine",
+  "expect": "deny",
+  "ctx": {
+   "email_phishing": "no",
+   "minConfidence": 100
+  }
+ },
+ {
+  "name": "low confidence does not block quarantine (not autonomous)",
+  "kind": "test",
+  "domain": "email_triage",
+  "action": "Quarantine",
+  "expect": "allow",
+  "ctx": {
+   "email_phishing": "yes",
+   "minConfidence": 10
+  },
+  "by": "email.quarantine.permit"
+ },
+ {
+  "name": "escalate action",
+  "kind": "test",
+  "domain": "email_triage",
+  "action": "EscalateHuman",
+  "expect": "allow",
+  "ctx": {
+   "email_action": "escalate",
+   "email_category": "billing",
+   "minConfidence": 100
+  },
+  "by": "email.escalate.permit"
+ },
+ {
+  "name": "escalate legal",
+  "kind": "test",
+  "domain": "email_triage",
+  "action": "EscalateHuman",
+  "expect": "allow",
+  "ctx": {
+   "email_action": "fyi",
+   "email_category": "legal",
+   "minConfidence": 100
+  },
+  "by": "email.escalate.permit"
+ },
+ {
+  "name": "ticket autoroute",
+  "kind": "test",
+  "domain": "ticket_route",
+  "action": "AutoRoute",
+  "expect": "allow",
+  "ctx": {
+   "ticket_pii": "no",
+   "ticket_urgency": "normal",
+   "ticket_queue": "shipping",
+   "minConfidence": 100
+  },
+  "by": "ticket.autoroute.permit"
+ },
+ {
+  "name": "ticket pii blocks autoroute",
+  "kind": "test",
+  "domain": "ticket_route",
+  "action": "AutoRoute",
+  "expect": "deny",
+  "ctx": {
+   "ticket_pii": "yes",
+   "ticket_urgency": "normal",
+   "ticket_queue": "shipping",
+   "minConfidence": 100
+  }
+ },
+ {
+  "name": "ticket sensitive queue blocks autoroute",
+  "kind": "test",
+  "domain": "ticket_route",
+  "action": "AutoRoute",
+  "expect": "deny",
+  "ctx": {
+   "ticket_pii": "no",
+   "ticket_urgency": "low",
+   "ticket_queue": "fraud_review",
+   "minConfidence": 100
+  },
+  "by": "ticket.autoroute.forbid-sensitive-queue"
+ },
+ {
+  "name": "ticket high urgency not autoroute",
+  "kind": "test",
+  "domain": "ticket_route",
+  "action": "AutoRoute",
+  "expect": "deny",
+  "ctx": {
+   "ticket_pii": "no",
+   "ticket_urgency": "high",
+   "ticket_queue": "shipping",
+   "minConfidence": 100
+  }
+ },
+ {
+  "name": "ticket redact pii",
+  "kind": "test",
+  "domain": "ticket_route",
+  "action": "RedactPII",
+  "expect": "allow",
+  "ctx": {
+   "ticket_pii": "yes",
+   "minConfidence": 100
+  },
+  "by": "ticket.redact.permit"
+ },
+ {
+  "name": "ticket page on critical",
+  "kind": "test",
+  "domain": "ticket_route",
+  "action": "PageOnCall",
+  "expect": "allow",
+  "ctx": {
+   "ticket_urgency": "critical",
+   "minConfidence": 100
+  },
+  "by": "ticket.page.permit"
+ },
+ {
+  "name": "ticket no page on high",
+  "kind": "test",
+  "domain": "ticket_route",
+  "action": "PageOnCall",
+  "expect": "deny",
+  "ctx": {
+   "ticket_urgency": "high",
+   "minConfidence": 100
+  }
+ },
+ {
+  "name": "ticket escalate compliance",
+  "kind": "test",
+  "domain": "ticket_route",
+  "action": "EscalateHuman",
+  "expect": "allow",
+  "ctx": {
+   "ticket_queue": "compliance",
+   "minConfidence": 100
+  },
+  "by": "ticket.escalate.permit"
+ },
+ {
+  "name": "clinic selfserve appointment",
+  "kind": "test",
+  "domain": "clinic_request",
+  "action": "SelfServe",
+  "expect": "allow",
+  "ctx": {
+   "clinic_urgent": "no",
+   "clinic_request": "appointment",
+   "minConfidence": 100
+  },
+  "by": "clinic.selfserve.permit"
+ },
+ {
+  "name": "clinic urgent blocks selfserve",
+  "kind": "test",
+  "domain": "clinic_request",
+  "action": "SelfServe",
+  "expect": "deny",
+  "ctx": {
+   "clinic_urgent": "yes",
+   "clinic_request": "appointment",
+   "minConfidence": 100
+  },
+  "by": "clinic.selfserve.forbid-urgent"
+ },
+ {
+  "name": "clinic symptom blocks selfserve",
+  "kind": "test",
+  "domain": "clinic_request",
+  "action": "SelfServe",
+  "expect": "deny",
+  "ctx": {
+   "clinic_urgent": "no",
+   "clinic_request": "symptom_question",
+   "minConfidence": 100
+  },
+  "by": "clinic.selfserve.forbid-clinical"
+ },
+ {
+  "name": "clinic refill blocks selfserve",
+  "kind": "test",
+  "domain": "clinic_request",
+  "action": "SelfServe",
+  "expect": "deny",
+  "ctx": {
+   "clinic_urgent": "no",
+   "clinic_request": "refill",
+   "minConfidence": 100
+  },
+  "by": "clinic.selfserve.forbid-clinical"
+ },
+ {
+  "name": "clinic urgent escalates",
+  "kind": "test",
+  "domain": "clinic_request",
+  "action": "EscalateHuman",
+  "expect": "allow",
+  "ctx": {
+   "clinic_urgent": "yes",
+   "clinic_request": "billing",
+   "minConfidence": 100
+  },
+  "by": "clinic.escalate.permit"
+ },
+ {
+  "name": "clinic routine no escalation",
+  "kind": "test",
+  "domain": "clinic_request",
+  "action": "EscalateHuman",
+  "expect": "deny",
+  "ctx": {
+   "clinic_urgent": "no",
+   "clinic_request": "billing",
+   "minConfidence": 100
+  }
+ },
+ {
+  "name": "handoff no -> bot continues",
+  "kind": "test",
+  "domain": "agent_handoff",
+  "action": "BotContinue",
+  "expect": "allow",
+  "ctx": {
+   "handoff": "no",
+   "minConfidence": 100
+  },
+  "by": "handoff.bot.permit"
+ },
+ {
+  "name": "handoff yes -> bot stops",
+  "kind": "test",
+  "domain": "agent_handoff",
+  "action": "BotContinue",
+  "expect": "deny",
+  "ctx": {
+   "handoff": "yes",
+   "minConfidence": 100
+  }
+ },
+ {
+  "name": "handoff yes -> escalate",
+  "kind": "test",
+  "domain": "agent_handoff",
+  "action": "EscalateHuman",
+  "expect": "allow",
+  "ctx": {
+   "handoff": "yes",
+   "minConfidence": 100
+  },
+  "by": "handoff.escalate.permit"
+ },
+ {
+  "name": "bank balance auto",
+  "kind": "test",
+  "domain": "banking_intent",
+  "action": "AutoExecute",
+  "expect": "allow",
+  "ctx": {
+   "bank_intent": "balance",
+   "minConfidence": 100
+  },
+  "by": "bank.execute.permit-low-risk"
+ },
+ {
+  "name": "bank fraud not auto",
+  "kind": "test",
+  "domain": "banking_intent",
+  "action": "AutoExecute",
+  "expect": "deny",
+  "ctx": {
+   "bank_intent": "fraud_alert",
+   "minConfidence": 100
+  },
+  "by": "bank.execute.forbid-high-risk"
+ },
+ {
+  "name": "bank wire step-up",
+  "kind": "test",
+  "domain": "banking_intent",
+  "action": "RequireStepUp",
+  "expect": "allow",
+  "ctx": {
+   "bank_intent": "wire",
+   "minConfidence": 100
+  },
+  "by": "bank.stepup.permit"
+ },
+ {
+  "name": "bank card_lost escalates",
+  "kind": "test",
+  "domain": "banking_intent",
+  "action": "EscalateHuman",
+  "expect": "allow",
+  "ctx": {
+   "bank_intent": "card_lost",
+   "minConfidence": 100
+  },
+  "by": "bank.escalate.permit"
+ },
+ {
+  "name": "bank balance no escalation",
+  "kind": "test",
+  "domain": "banking_intent",
+  "action": "EscalateHuman",
+  "expect": "deny",
+  "ctx": {
+   "bank_intent": "balance",
+   "minConfidence": 100
+  }
+ },
+ {
+  "name": "support order status auto",
+  "kind": "test",
+  "domain": "support_intent",
+  "action": "AutoExecute",
+  "expect": "allow",
+  "ctx": {
+   "support_intent": "order_status",
+   "minConfidence": 100
+  },
+  "by": "support.execute.permit-self-service"
+ },
+ {
+  "name": "support close account not auto",
+  "kind": "test",
+  "domain": "support_intent",
+  "action": "AutoExecute",
+  "expect": "deny",
+  "ctx": {
+   "support_intent": "close_account",
+   "minConfidence": 100
+  },
+  "by": "support.execute.forbid-destructive"
+ },
+ {
+  "name": "support human request escalates",
+  "kind": "test",
+  "domain": "support_intent",
+  "action": "EscalateHuman",
+  "expect": "allow",
+  "ctx": {
+   "support_intent": "speak_to_human",
+   "minConfidence": 100
+  },
+  "by": "support.escalate.permit"
+ },
+ {
+  "name": "travel seat auto",
+  "kind": "test",
+  "domain": "travel_request",
+  "action": "AutoExecute",
+  "expect": "allow",
+  "ctx": {
+   "travel_intent": "seat",
+   "minConfidence": 100
+  },
+  "by": "travel.execute.permit"
+ },
+ {
+  "name": "travel disruption escalates",
+  "kind": "test",
+  "domain": "travel_request",
+  "action": "EscalateHuman",
+  "expect": "allow",
+  "ctx": {
+   "travel_intent": "disruption",
+   "minConfidence": 100
+  },
+  "by": "travel.escalate.permit"
+ },
+ {
+  "name": "benefits status reply",
+  "kind": "test",
+  "domain": "benefits_request",
+  "action": "AutoReply",
+  "expect": "allow",
+  "ctx": {
+   "benefit_status": "yes",
+   "benefit_program": "pension",
+   "minConfidence": 100
+  },
+  "by": "benefits.reply.permit-status"
+ },
+ {
+  "name": "benefits other program no reply",
+  "kind": "test",
+  "domain": "benefits_request",
+  "action": "AutoReply",
+  "expect": "deny",
+  "ctx": {
+   "benefit_status": "yes",
+   "benefit_program": "other",
+   "minConfidence": 100
+  }
+ },
+ {
+  "name": "benefits not a status ask",
+  "kind": "test",
+  "domain": "benefits_request",
+  "action": "AutoReply",
+  "expect": "deny",
+  "ctx": {
+   "benefit_status": "no",
+   "benefit_program": "pension",
+   "minConfidence": 100
+  }
+ },
+ {
+  "name": "review_sentiment positive thanks",
+  "kind": "test",
+  "domain": "review_sentiment",
+  "action": "AutoThank",
+  "expect": "allow",
+  "ctx": {
+   "review_sentiment": "positive",
+   "minConfidence": 100
+  },
+  "by": "review.thank.permit"
+ },
+ {
+  "name": "review_sentiment negative escalates",
+  "kind": "test",
+  "domain": "review_sentiment",
+  "action": "EscalateHuman",
+  "expect": "allow",
+  "ctx": {
+   "review_sentiment": "negative",
+   "minConfidence": 100
+  },
+  "by": "review.escalate.permit"
+ },
+ {
+  "name": "review_sentiment neutral nothing",
+  "kind": "test",
+  "domain": "review_sentiment",
+  "action": "AutoThank",
+  "expect": "deny",
+  "ctx": {
+   "review_sentiment": "neutral",
+   "minConfidence": 100
+  }
+ },
+ {
+  "name": "restaurant_review positive thanks",
+  "kind": "test",
+  "domain": "restaurant_review",
+  "action": "AutoThank",
+  "expect": "allow",
+  "ctx": {
+   "review_sentiment": "positive",
+   "minConfidence": 100
+  },
+  "by": "review.thank.permit"
+ },
+ {
+  "name": "restaurant_review negative escalates",
+  "kind": "test",
+  "domain": "restaurant_review",
+  "action": "EscalateHuman",
+  "expect": "allow",
+  "ctx": {
+   "review_sentiment": "negative",
+   "minConfidence": 100
+  },
+  "by": "review.escalate.permit"
+ },
+ {
+  "name": "restaurant_review neutral nothing",
+  "kind": "test",
+  "domain": "restaurant_review",
+  "action": "AutoThank",
+  "expect": "deny",
+  "ctx": {
+   "review_sentiment": "neutral",
+   "minConfidence": 100
+  }
+ },
+ {
+  "name": "feedback bug files",
+  "kind": "test",
+  "domain": "product_feedback",
+  "action": "FileBug",
+  "expect": "allow",
+  "ctx": {
+   "feedback_type": "bug",
+   "minConfidence": 100
+  },
+  "by": "feedback.bug.permit"
+ },
+ {
+  "name": "feedback how_to replies",
+  "kind": "test",
+  "domain": "product_feedback",
+  "action": "AutoReply",
+  "expect": "allow",
+  "ctx": {
+   "feedback_type": "how_to",
+   "minConfidence": 100
+  },
+  "by": "feedback.reply.permit"
+ },
+ {
+  "name": "feedback feature no auto reply",
+  "kind": "test",
+  "domain": "product_feedback",
+  "action": "AutoReply",
+  "expect": "deny",
+  "ctx": {
+   "feedback_type": "feature_request",
+   "minConfidence": 100
+  }
+ },
+ {
+  "name": "domains do not leak: email ctx in ticket domain",
+  "kind": "test",
+  "domain": "ticket_route",
+  "action": "AutoRoute",
+  "expect": "deny",
+  "ctx": {
+   "email_phishing": "no",
+   "minConfidence": 100
+  }
+ },
+ {
+  "name": "fetch apache ok",
+  "kind": "run",
+  "action": "FetchModel",
+  "expect": "allow",
+  "license": "apache-2.0",
+  "sizeMb": 500,
+  "threads": 2,
+  "cpus": 2,
+  "by": "run.fetch.permit-apache"
+ },
+ {
+  "name": "fetch gpl denied",
+  "kind": "run",
+  "action": "FetchModel",
+  "expect": "deny",
+  "license": "gpl-3.0",
+  "sizeMb": 500,
+  "threads": 2,
+  "cpus": 2
+ },
+ {
+  "name": "fetch oversize denied",
+  "kind": "run",
+  "action": "FetchModel",
+  "expect": "deny",
+  "license": "apache-2.0",
+  "sizeMb": 5000,
+  "threads": 2,
+  "cpus": 2,
+  "by": "run.fetch.forbid-oversize"
+ },
+ {
+  "name": "run within quota",
+  "kind": "run",
+  "action": "RunModel",
+  "expect": "allow",
+  "license": "apache-2.0",
+  "sizeMb": 500,
+  "threads": 2,
+  "cpus": 2,
+  "by": "run.run.permit-within-quota"
+ },
+ {
+  "name": "run oversubscribed denied",
+  "kind": "run",
+  "action": "RunModel",
+  "expect": "deny",
+  "license": "apache-2.0",
+  "sizeMb": 500,
+  "threads": 16,
+  "cpus": 2,
+  "by": "run.run.forbid-oversubscribe"
+ }
+]

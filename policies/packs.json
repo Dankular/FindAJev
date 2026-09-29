@@ -1,0 +1,114 @@
+{
+  "_doc": "domain -> Cedar actions to authorize per test, and dataset head -> Cedar context attribute. Domains not listed are accuracy-only (Misclassified when wrong).",
+  "packs": {
+    "email_triage": {
+      "actions": [
+        "AutoReply",
+        "Quarantine",
+        "EscalateHuman"
+      ],
+      "heads": {
+        "is_phishing": "email_phishing",
+        "category": "email_category",
+        "action": "email_action",
+        "needs_reply": "email_needs_reply"
+      }
+    },
+    "ticket_route": {
+      "actions": [
+        "AutoRoute",
+        "RedactPII",
+        "PageOnCall",
+        "EscalateHuman"
+      ],
+      "heads": {
+        "queue": "ticket_queue",
+        "urgency": "ticket_urgency",
+        "contains_pii": "ticket_pii"
+      }
+    },
+    "clinic_request": {
+      "actions": [
+        "SelfServe",
+        "EscalateHuman"
+      ],
+      "heads": {
+        "request": "clinic_request",
+        "urgent": "clinic_urgent"
+      }
+    },
+    "agent_handoff": {
+      "actions": [
+        "BotContinue",
+        "EscalateHuman"
+      ],
+      "heads": {
+        "should_handoff": "handoff"
+      }
+    },
+    "banking_intent": {
+      "actions": [
+        "AutoExecute",
+        "RequireStepUp",
+        "EscalateHuman"
+      ],
+      "heads": {
+        "intent": "bank_intent"
+      }
+    },
+    "benefits_request": {
+      "actions": [
+        "AutoReply"
+      ],
+      "heads": {
+        "program": "benefit_program",
+        "asking_status": "benefit_status"
+      }
+    },
+    "support_intent": {
+      "actions": [
+        "AutoExecute",
+        "EscalateHuman"
+      ],
+      "heads": {
+        "intent": "support_intent"
+      }
+    },
+    "travel_request": {
+      "actions": [
+        "AutoExecute",
+        "EscalateHuman"
+      ],
+      "heads": {
+        "intent": "travel_intent"
+      }
+    },
+    "review_sentiment": {
+      "actions": [
+        "AutoThank",
+        "EscalateHuman"
+      ],
+      "heads": {
+        "sentiment": "review_sentiment"
+      }
+    },
+    "restaurant_review": {
+      "actions": [
+        "AutoThank",
+        "EscalateHuman"
+      ],
+      "heads": {
+        "sentiment": "review_sentiment"
+      }
+    },
+    "product_feedback": {
+      "actions": [
+        "FileBug",
+        "AutoReply"
+      ],
+      "heads": {
+        "feedback_type": "feedback_type"
+      }
+    }
+  }
+}

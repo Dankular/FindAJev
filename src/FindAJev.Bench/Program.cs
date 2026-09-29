@@ -27,7 +27,11 @@ switch (argv.FirstOrDefault())
             .Select(l => JsonSerializer.Deserialize<Item>(l)!).ToList();
         if (limit > 0) items = items.Take(limit).ToList();
 
-        var machine = new RunMachine(spec, root, items, threads, warmup, repeats);
+        var cpus = int.Parse(Opt("--cpus", Environment.ProcessorCount.ToString()));
+        var policyDir = Path.Combine(root, "policies");
+        PolicyEngine? pe = argv.Contains("--no-policy") || !Directory.Exists(policyDir) ? null : new PolicyEngine(policyDir);
+        if (pe is not null && items.Any(i => i.Labels is null)) pe = null; // encoded data predates label strings: no policies possible
+        var machine = new RunMachine(spec, root, items, threads, warmup, repeats, pe, cpus);
         var r = machine.Run();
         var outDir = Path.Combine(root, "results");
         Directory.CreateDirectory(outDir);
@@ -37,6 +41,24 @@ switch (argv.FirstOrDefault())
             : $"{r.Id} [{r.State}] {r.Error}");
         return r.State == "Scored" ? 0 : 1;
     }
+
+    case "check": // pre-flight for the server, before any download: may this model be fetched and run here?
+    {
+        var id = argv.ElementAtOrDefault(1) ?? throw new ArgumentException("check <model-id>");
+        var spec = registry.FirstOrDefault(m => m.Id == id) ?? throw new ArgumentException($"unknown model {id}");
+        var pe = new PolicyEngine(Path.Combine(root, "policies"));
+        var threads = int.Parse(Opt("--threads", Environment.ProcessorCount.ToString()));
+        var cpus = int.Parse(Opt("--cpus", Environment.ProcessorCount.ToString()));
+        var ds = new[] { "FetchModel", "RunModel" }.Select(a => pe.AuthorizeRun(a, spec, threads, cpus)).ToList();
+        Console.WriteLine(JsonSerializer.Serialize(new { allow = ds.All(d => d.Allow), decisions = ds.Select(d => new { action = d.Action, allow = d.Allow, by = d.Reasons, error = d.Error }) }));
+        return ds.All(d => d.Allow) ? 0 : 3;
+    }
+
+    case "policy-test":
+        return PolicyCommands.Test(root);
+
+    case "policy-coverage":
+        return PolicyCommands.Coverage(root, argv.ElementAtOrDefault(1) ?? "julia");
 
     case "rank":
         var md = Ranking.Render(Path.Combine(root, "results"));

@@ -109,7 +109,7 @@ def main():
         for it in load_items(a.limit_per_domain):
             it["question"] = a.question.format(task=it["task"].replace("_", " "))
             e = enc(it)
-            fh.write(json.dumps(dict(id=it["id"], domain=it["domain"], n=len(it["labels"]), gold=it["gold"], **e)) + "\n")
+            fh.write(json.dumps(dict(id=it["id"], domain=it["domain"], task=it["task"], labels=it["labels"], n=len(it["labels"]), gold=it["gold"], **e)) + "\n")
             n += 1
     print(f"wrote {n} items -> {out}", file=sys.stderr)
 

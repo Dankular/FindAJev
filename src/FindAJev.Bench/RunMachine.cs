@@ -20,6 +20,10 @@ public sealed class RunMachine
     readonly int _threads, _warmup, _repeats;
     readonly List<Item> _items;
     readonly StateMachine<RunState, RunTrigger> _sm;
+    readonly PolicyEngine? _pe;
+    readonly int _cpus;
+    string? _policyDenial;
+    readonly List<TestMachine> _tests = new();
 
     InferenceSession? _session;
     List<Dictionary<string, OrtValue>>? _inputs;
@@ -30,9 +34,11 @@ public sealed class RunMachine
     public RunState State => _sm.State;
     public RunResult Result => _r;
 
-    public RunMachine(ModelSpec spec, string root, List<Item> items, int threads, int warmup, int repeats)
+    public RunMachine(ModelSpec spec, string root, List<Item> items, int threads, int warmup, int repeats,
+                      PolicyEngine? pe = null, int cpus = 0)
     {
         (_spec, _root, _items, _threads, _warmup, _repeats) = (spec, root, items, threads, warmup, repeats);
+        (_pe, _cpus) = (pe, cpus > 0 ? cpus : Environment.ProcessorCount);
         _r.Id = spec.Id; _r.Family = spec.Family; _r.Precision = spec.Precision; _r.Threads = threads;
         _r.Items = items.Count; _r.OrtVersion = OrtEnv.Instance().GetVersionString();
         _r.Cpu = CpuName();
@@ -42,7 +48,8 @@ public sealed class RunMachine
         _sm.Configure(RunState.Running).Permit(RunTrigger.Fail, RunState.Failed);
 
         _sm.Configure(RunState.Pending).SubstateOf(RunState.Running)
-            .PermitIf(RunTrigger.Verify, RunState.ModelReady, () => File.Exists(OnnxPath), "model file present");
+            .PermitIf(RunTrigger.Verify, RunState.ModelReady, () => File.Exists(OnnxPath) && _policyDenial is null,
+                      "model file present and Cedar allows FetchModel + RunModel");
 
         _sm.Configure(RunState.ModelReady).SubstateOf(RunState.Running)
             .Permit(RunTrigger.Load, RunState.SessionLoaded);
@@ -64,6 +71,25 @@ public sealed class RunMachine
 
         _sm.Configure(RunState.Failed)
             .OnEntry(t => { _r.State = "Failed"; });
+
+        _sm.OnTransitioned(t => Events.Emit(new { e = "run", model = _spec.Id, from = t.Source.ToString(), to = t.Destination.ToString() }));
+    }
+
+    /// <summary>Ask Cedar whether this model may be fetched and run here. Sets _policyDenial when it may not.</summary>
+    void EnforceRunPolicy()
+    {
+        if (_pe is null) return;
+        foreach (var action in new[] { "FetchModel", "RunModel" })
+        {
+            var d = _pe.AuthorizeRun(action, _spec, _threads, _cpus);
+            Events.Emit(new { e = "policy", scope = "run", model = _spec.Id, action, allow = d.Allow, by = d.Reasons });
+            if (d.Error is not null) throw new InvalidOperationException($"Cedar error on {action}: {d.Error}");
+            if (!d.Allow)
+            {
+                _policyDenial = $"Cedar denied {action} for {_spec.Id} ({(d.Reasons.Length > 0 ? string.Join(", ", d.Reasons) : "no permit policy matched")})";
+                return;
+            }
+        }
     }
 
     string OnnxPath => Path.Combine(_root, _spec.Onnx);
@@ -73,6 +99,15 @@ public sealed class RunMachine
     {
         try
         {
+            Events.Emit(Events.Graph(_sm, "run"));
+            Events.Emit(TestMachine.Graph());
+            if (_pe is not null)
+            {
+                var bad = _pe.Validate().Where(p => !p.Contains("warning:")).ToList();
+                if (bad.Count > 0) throw new InvalidOperationException("policy validation failed: " + string.Join(" | ", bad).Replace("\n", " "));
+            }
+            EnforceRunPolicy();
+            if (_policyDenial is not null) throw new UnauthorizedAccessException(_policyDenial);
             if (!_sm.CanFire(RunTrigger.Verify))
                 throw new FileNotFoundException($"missing {OnnxPath} (run: python tools/fetch.py {_spec.Id})");
             _sm.Fire(RunTrigger.Verify);
@@ -144,21 +179,73 @@ public sealed class RunMachine
         for (var k = 0; k < _warmup; k++) Infer(k % _items.Count);
     }
 
+    static Prediction Predict(float[] logits, int n)
+    {
+        int arg = 0;
+        for (var k = 1; k < n; k++) if (logits[k] > logits[arg]) arg = k;
+        double sum = 0;
+        for (var k = 0; k < n; k++) sum += Math.Exp(logits[k] - logits[arg]);
+        return new Prediction(arg, (int)Math.Round(100.0 / sum)); // softmax top probability, uncalibrated
+    }
+
+    double TimedInfer(int i)
+    {
+        var sw = Stopwatch.GetTimestamp();
+        var lg = Infer(i);
+        var ms = Stopwatch.GetElapsedTime(sw).TotalMilliseconds;
+        _ms.Add(ms);
+        _lastLogits = lg;
+        return ms;
+    }
+    float[] _lastLogits = Array.Empty<float>();
+
     void Measure()
     {
-        // Per-decision latency at batch size 1, sequential, wall clock around session.Run only.
-        // Repeat 1 records logits for scoring; every repeat contributes to the latency distribution.
+        // Per-decision latency at batch size 1, sequential, wall clock around session.Run only. Cedar and event emission
+        // happen outside the stopwatch. Repeat 1 records logits and runs the per-test machines; every repeat feeds latency.
         var total = _repeats * _items.Count;
         Progress("measure", 0, total, 0);
-        for (var rep = 0; rep < _repeats; rep++)
-            for (var i = 0; i < _items.Count; i++)
+        var rows = _pe is null ? null : Rows.Group(_items);
+        if (rows is not null)
+            Events.Emit(new
             {
-                var sw = Stopwatch.GetTimestamp();
-                var lg = Infer(i);
-                _ms.Add(Stopwatch.GetElapsedTime(sw).TotalMilliseconds);
-                if (rep == 0) _logits.Add(lg);
-                if (_ms.Count % 25 == 0 || _ms.Count == total) Progress("measure", _ms.Count, total, _ms.Average());
+                e = "plan", model = _spec.Id, tests = rows.Count,
+                suites = rows.GroupBy(r => _pe!.Packs.ContainsKey(r.Domain) ? "automation" : "classification").ToDictionary(g => g.Key, g => g.Count()),
+                domains = rows.GroupBy(r => r.Domain).ToDictionary(g => g.Key, g => g.Count()),
+                packDomains = _pe!.Packs.Keys.ToDictionary(k => k, _ => true),
+                keys = rows.Select(r => r.Key + "|" + r.Domain),
+            });
+
+        for (var rep = 0; rep < _repeats; rep++)
+        {
+            if (rows is null || rep > 0)
+            {
+                for (var i = 0; i < _items.Count; i++)
+                {
+                    TimedInfer(i);
+                    if (rep == 0) _logits.Add(_lastLogits);
+                    if (_ms.Count % 25 == 0 || _ms.Count == total) Progress("measure", _ms.Count, total, _ms.Average());
+                }
+                continue;
             }
+            for (var ri = 0; ri < rows.Count; ri++)
+            {
+                var row = rows[ri];
+                var tm = new TestMachine(ri, row, _pe);
+                tm.Start();
+                var preds = new Prediction[row.Heads.Count];
+                for (var h = 0; h < row.Heads.Count; h++)
+                {
+                    TimedInfer(row.Start + h);
+                    _logits.Add(_lastLogits);
+                    preds[h] = Predict(_lastLogits, row.Heads[h].N);
+                    if (_ms.Count % 25 == 0 || _ms.Count == total) Progress("measure", _ms.Count, total, _ms.Average());
+                }
+                tm.Complete(preds);
+                _tests.Add(tm);
+                Events.Emit(tm.Describe());
+            }
+        }
     }
 
     /// <summary>Machine-readable progress line on stderr, consumed by space/server.py (which turns it into SSE events).</summary>
@@ -188,6 +275,14 @@ public sealed class RunMachine
         }
         _r.Accuracy = (double)ok / _items.Count;
         _r.AccuracyByDomain = byDom.OrderBy(k => k.Key).ToDictionary(k => k.Key, k => (double)k.Value.ok / k.Value.n);
+        foreach (var g in _tests.GroupBy(t => t.Suite))
+            _r.Suites[g.Key] = new SuiteResult
+            {
+                Tests = g.Count(),
+                Correct = g.Count(t => t.State == TS.Correct), WrongButSafe = g.Count(t => t.State == TS.WrongButSafe),
+                Overblocked = g.Count(t => t.State == TS.Overblocked), Unsafe = g.Count(t => t.State == TS.Unsafe),
+                Misclassified = g.Count(t => t.State == TS.Misclassified), Errored = g.Count(t => t.State == TS.Errored),
+            };
         _r.PeakRssMb = Process.GetCurrentProcess().PeakWorkingSet64 / 1048576.0;
         _r.State = "Scored";
     }

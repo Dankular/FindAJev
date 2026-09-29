@@ -1,0 +1,208 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>FindAJev live</title>
+<style>
+:root{--bg:#0f1115;--fg:#e6e8ec;--mut:#8b93a1;--card:#171a21;--line:#2a2f3a;
+ --Queued:#8b93a1;--Inferring:#4f8cff;--Enforcing:#a78bfa;--Correct:#34d399;--WrongButSafe:#2dd4bf;
+ --Overblocked:#fbbf24;--Unsafe:#f87171;--Misclassified:#fb923c;--Errored:#f472b6}
+@media (prefers-color-scheme:light){:root{--bg:#f6f7f9;--fg:#15181e;--mut:#5b6472;--card:#fff;--line:#dfe3ea;
+ --Queued:#8b93a1;--Inferring:#2563eb;--Enforcing:#7c3aed;--Correct:#16a34a;--WrongButSafe:#0d9488;
+ --Overblocked:#d97706;--Unsafe:#dc2626;--Misclassified:#ea580c;--Errored:#db2777}}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--fg);font:14px/1.45 system-ui,sans-serif}
+main{max-width:1200px;margin:0 auto;padding:16px}
+h1{font-size:18px;margin:0 0 4px}h2{font-size:12px;letter-spacing:.06em;text-transform:uppercase;color:var(--mut);margin:0 0 8px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:12px;margin-top:12px}
+.row{display:grid;gap:12px;grid-template-columns:1fr}@media(min-width:900px){.row.two{grid-template-columns:1.6fr 1fr}}
+.mut{color:var(--mut)}.mono{font-family:ui-monospace,monospace;font-size:12px}
+.crumbs{display:flex;flex-wrap:wrap;gap:6px;margin:6px 0}.crumb{padding:2px 8px;border-radius:99px;border:1px solid var(--line);color:var(--mut)}
+.crumb.on{background:var(--Inferring);border-color:var(--Inferring);color:#fff}.crumb.done{color:var(--Correct);border-color:var(--Correct)}.crumb.bad{background:var(--Unsafe);border-color:var(--Unsafe);color:#fff}
+.chips{display:flex;flex-wrap:wrap;gap:8px}.chip{display:flex;align-items:center;gap:6px;padding:3px 9px;border:1px solid var(--line);border-radius:8px}
+.dot{width:10px;height:10px;border-radius:3px;display:inline-block}
+.bar{height:8px;background:var(--line);border-radius:99px;overflow:hidden;margin:8px 0}.bar>i{display:block;height:100%;background:var(--Inferring);width:0;transition:width .3s}
+svg{width:100%;height:auto;display:block}.edge{fill:none;stroke:var(--mut);transition:stroke-width .3s,opacity .3s}
+.node rect{fill-opacity:.16;stroke-width:2;transition:fill-opacity .25s}.node text{fill:var(--fg);font-size:13px}.node .n{font-weight:700;font-size:16px}
+.node.flash rect{fill-opacity:.55}.cluster{fill:none;stroke:var(--line);stroke-dasharray:4 4}.clabel{fill:var(--mut);font-size:11px;letter-spacing:.06em;text-transform:uppercase}
+canvas{width:100%;display:block;border-radius:6px}
+table{width:100%;border-collapse:collapse}td,th{padding:3px 6px;text-align:left;border-bottom:1px solid var(--line);font-size:13px}th{color:var(--mut);font-weight:500}
+td.num,th.num{text-align:right;font-variant-numeric:tabular-nums}
+.feed{max-height:260px;overflow:auto}.feed div{padding:5px 0;border-bottom:1px solid var(--line)}
+.tag{padding:1px 6px;border-radius:5px;color:#fff;font-size:11px}
+#tip{position:fixed;pointer-events:none;background:var(--card);border:1px solid var(--line);border-radius:8px;padding:8px 10px;max-width:380px;display:none;z-index:9;box-shadow:0 6px 24px #0006}
+.ok{color:var(--Correct)}.no{color:var(--Unsafe)}
+</style>
+</head>
+<body>
+<main>
+  <h1>FindAJev <span class="mut">live</span> · <a href="/" style="color:var(--mut)">ranking</a></h1>
+  <div class="mut" id="sub">connecting…</div>
+
+  <div class="card">
+    <h2>Run <span id="model" class="mono"></span></h2>
+    <div class="crumbs" id="crumbs"></div>
+    <div class="bar"><i id="pbar"></i></div>
+    <div id="prog" class="mut">waiting for a job…</div>
+    <div class="chips" id="rpol" style="margin-top:8px"></div>
+  </div>
+
+  <div class="card"><h2>Test state machine (Stateless) — activated · passed · failed</h2><svg id="graph" viewBox="0 0 900 430"></svg></div>
+
+  <div class="card"><h2>Tests</h2>
+    <div class="chips" id="legend"></div>
+    <canvas id="grid" style="margin-top:10px"></canvas>
+  </div>
+
+  <div class="row two">
+    <div class="card"><h2>Cedar policy decisions (model labels) — hits</h2><table id="pol"></table></div>
+    <div class="card"><h2>Guardrail failures &amp; overblocks</h2><div class="feed" id="feed"><span class="mut">none yet</span></div></div>
+  </div>
+  <div class="card"><h2>By domain</h2><table id="dom"></table></div>
+</main>
+<div id="tip"></div>
+<script>
+const $=id=>document.getElementById(id);
+const COL=s=>`var(--${s})`;
+let G=null, S=null, P=null, codes=[], states=null, counts={}, edges={}, hits={}, epoch=-1, domOf=[], keys=[];
+let dirty=new Set(), gridMeta=null, flash={};
+
+// hand-placed layout for the known test machine; any unknown state falls back to a spare column
+const POS={Queued:[70,190],Inferring:[240,190],Enforcing:[410,190],Correct:[610,50],WrongButSafe:[610,120],Overblocked:[610,215],Unsafe:[610,285],Misclassified:[610,350],Errored:[790,285]};
+const W=118,H=46;
+
+function buildGraph(){
+  const svg=$('graph'); svg.innerHTML='';
+  if(!G||!G.test){svg.innerHTML='<text x="20" y="40" class="clabel">waiting for the harness to report its state machine…</text>';return}
+  const ns='http://www.w3.org/2000/svg', el=(t,a,p=svg,txt)=>{const e=document.createElementNS(ns,t);for(const k in a)e.setAttribute(k,a[k]);if(txt!=null)e.textContent=txt;p.appendChild(e);return e};
+  const defs=el('defs',{});const mk=el('marker',{id:'ah',viewBox:'0 0 10 10',refX:9,refY:5,markerWidth:6,markerHeight:6,orient:'auto-start-reverse'},defs);
+  el('path',{d:'M0 0L10 5L0 10z',fill:'var(--mut)'},mk);
+  const st=G.test.states, parent={}; st.forEach(s=>parent[s.id]=s.parent);
+  const leaves=st.filter(s=>POS[s.id]); let spare=0; st.forEach(s=>{if(!POS[s.id]&&!st.some(x=>x.parent===s.id)&&!['Active','Passed','Failed'].includes(s.id)){POS[s.id]=[70+120*(spare++),340]}});
+  const box={}; // cluster boxes = bbox of children
+  st.filter(s=>st.some(c=>c.parent===s.id)).forEach(c=>{
+    const kids=st.filter(k=>k.parent===c.id&&POS[k.id]); if(!kids.length)return;
+    const xs=kids.map(k=>POS[k.id][0]),ys=kids.map(k=>POS[k.id][1]);
+    box[c.id]=[Math.min(...xs)-W/2-14,Math.min(...ys)-H/2-24,Math.max(...xs)+W/2+14,Math.max(...ys)+H/2+14];
+  });
+  for(const id in box){const b=box[id];el('rect',{class:'cluster',x:b[0],y:b[1],width:b[2]-b[0],height:b[3]-b[1],rx:12});
+    el('text',{class:'clabel',x:b[0]+10,y:b[1]+15},svg,id==='Active'?'activated':id.toLowerCase());}
+  const anchor=(id,toward)=>{ // point on a node/cluster border facing `toward`
+    let cx,cy,w,h; if(POS[id]){[cx,cy]=POS[id];w=W;h=H}else{const b=box[id];cx=(b[0]+b[2])/2;cy=(b[1]+b[3])/2;w=b[2]-b[0];h=b[3]-b[1]}
+    const dx=toward[0]-cx,dy=toward[1]-cy,k=Math.min((w/2)/Math.abs(dx||1e-9),(h/2)/Math.abs(dy||1e-9));return[cx+dx*k,cy+dy*k]};
+  const centre=id=>POS[id]||[(box[id][0]+box[id][2])/2,(box[id][1]+box[id][3])/2];
+  svg._edges=[];
+  G.test.edges.forEach(e=>{
+    if(!(POS[e.from]||box[e.from])||!(POS[e.to]||box[e.to]))return;
+    const a=anchor(e.from,centre(e.to)),b=anchor(e.to,centre(e.from));
+    const mx=(a[0]+b[0])/2,my=(a[1]+b[1])/2-((a[0]===b[0])?0:8);
+    const p=el('path',{class:'edge','marker-end':'url(#ah)',d:`M${a[0]} ${a[1]} Q${mx} ${my} ${b[0]} ${b[1]}`,'stroke-width':1,opacity:.25},svg);
+    el('title',{},p,`${e.trigger}${e.guard?' — '+e.guard:''}`);
+    svg._edges.push({p,from:e.from,to:e.to});
+  });
+  svg._nodes={};
+  leaves.forEach(s=>{const [x,y]=POS[s.id];const g=el('g',{class:'node',transform:`translate(${x-W/2},${y-H/2})`});
+    el('rect',{width:W,height:H,rx:9,fill:COL(s.id),stroke:COL(s.id)},g);
+    el('text',{x:10,y:19},g,s.id);const n=el('text',{class:'n',x:10,y:38},g,'0');svg._nodes[s.id]={g,n}});
+  paintGraph();
+}
+function paintGraph(){
+  const svg=$('graph'); if(!svg._nodes)return;
+  for(const id in svg._nodes){const v=counts[id]||0,n=svg._nodes[id];
+    if(n.n.textContent!==String(v)){n.n.textContent=v;n.g.classList.add('flash');setTimeout(()=>n.g.classList.remove('flash'),350)}}
+  const max=Math.max(1,...Object.values(edges));
+  (svg._edges||[]).forEach(e=>{ // observed transitions; edges out of a cluster (Active>Errored) match any child source
+    let c=edges[`${e.from}>${e.to}`]||0; if(!c&&['Active','Passed','Failed'].includes(e.from)){c=Object.entries(edges).filter(([k])=>k.endsWith('>'+e.to)&&k.split('>')[0]!=='Enforcing'&&k.split('>')[0]!=='Inferring').reduce((s,[,v])=>s+v,0)}
+    e.p.setAttribute('stroke-width',1+3*Math.log2(1+c)/Math.log2(1+max));e.p.setAttribute('opacity',c?.9:.25)});
+}
+
+// ---- grid
+function layoutGrid(){
+  const cv=$('grid'),n=P?P.tests:0; if(!n){cv.height=0;return}
+  const cell=9,gap=2,w=cv.clientWidth||900,cols=Math.max(1,Math.floor(w/(cell+gap))),rows=Math.ceil(n/cols);
+  const dpr=devicePixelRatio||1;cv.width=w*dpr;cv.height=rows*(cell+gap)*dpr;cv.style.height=rows*(cell+gap)+'px';
+  gridMeta={cell,gap,cols,dpr};const ctx=cv.getContext('2d');ctx.setTransform(dpr,0,0,dpr,0,0);
+  const css=getComputedStyle(document.documentElement);gridMeta.colors=codes.map(c=>css.getPropertyValue('--'+c).trim());
+  for(let i=0;i<n;i++)paintCell(i);
+}
+function paintCell(i){const m=gridMeta,cv=$('grid'),ctx=cv.getContext('2d');const x=(i%m.cols)*(m.cell+m.gap),y=Math.floor(i/m.cols)*(m.cell+m.gap);
+  ctx.fillStyle=m.colors[states[i]]||'#888';ctx.fillRect(x,y,m.cell,m.cell)}
+function flush(){if(!gridMeta)return;dirty.forEach(paintCell);dirty.clear()}
+
+// ---- panels
+const GROUPS=[['activated',['Inferring','Enforcing']],['passed',['Correct','WrongButSafe']],['failed',['Overblocked','Unsafe','Misclassified','Errored']],['queued',['Queued']]];
+function paintLegend(){
+  $('legend').innerHTML=GROUPS.map(([g,ss])=>`<span class="chip"><b>${g} ${ss.reduce((a,s)=>a+(counts[s]||0),0)}</b>`+ss.map(s=>`<span class="dot" style="background:${COL(s)}"></span>${s} <b>${counts[s]||0}</b>`).join(' ')+`</span>`).join('');
+}
+const CRUMBS=['Pending','ModelReady','SessionLoaded','WarmedUp','Measured','Scored'];
+function paintRun(){
+  const rs=S.runState||'Pending',i=CRUMBS.indexOf(rs);
+  $('crumbs').innerHTML=CRUMBS.map((c,k)=>`<span class="crumb ${rs==='Failed'?'':(k<i?'done':k===i?'on':'')}">${c}</span>`).join('')+(rs==='Failed'?'<span class="crumb bad">Failed</span>':'');
+  $('model').textContent=S.model||'';
+  $('rpol').innerHTML=(S.runPolicy||[]).map(p=>`<span class="chip"><span class="${p.allow?'ok':'no'}">${p.allow?'✓':'✗'}</span> Cedar ${p.action} <span class="mut mono">${(p.by||[]).join(', ')||'no permit matched'}</span></span>`).join('');
+}
+function paintJob(j){
+  if(!j){return}
+  const p=j.progress||{},e=j.eta||{};
+  $('pbar').style.width=(j.percent||0)+'%';
+  $('prog').textContent=`${j.status} · ${j.stage||'idle'} · ${p.phase||''} ${p.done??''}/${p.total??''} (${j.percent??0}%) · mean ${p.meanMs??'?'} ms · elapsed ${Math.round(j.elapsed_s)}s · ETA this model ${e.current_s??'?'}s · queued ${e.queued_s??0}s${(e.queued_unknown||[]).length?' (+ unknown: '+e.queued_unknown.join(', ')+')':''} · done: ${(j.done_models||[]).join(', ')||'none'}`;
+  const errs=Object.entries(j.errors||{}); if(errs.length)$('prog').textContent+=' · errors: '+errs.map(([k,v])=>k+': '+v).join(' | ');
+}
+function paintPolicies(){
+  const rows=Object.entries(hits).sort((a,b)=>(b[1].allow+b[1].deny)-(a[1].allow+a[1].deny));
+  $('pol').innerHTML='<tr><th>policy</th><th class="num">allow</th><th class="num">deny</th></tr>'+(rows.map(([k,v])=>`<tr><td class="mono">${k}</td><td class="num ok">${v.allow}</td><td class="num no">${v.deny}</td></tr>`).join('')||'<tr><td class="mut" colspan=3>no decisions yet</td></tr>');
+}
+function paintDomains(){
+  if(!P||!states)return;const d={};
+  for(let i=0;i<states.length;i++){const k=domOf[i],s=codes[states[i]];(d[k]=d[k]||{})[s]=(d[k][s]||0)+1}
+  const cols=['Queued','Inferring','Enforcing','Correct','WrongButSafe','Overblocked','Unsafe','Misclassified','Errored'];
+  $('dom').innerHTML='<tr><th>domain</th><th>suite</th>'+cols.map(c=>`<th class="num" style="color:${COL(c)}">${c}</th>`).join('')+'</tr>'+Object.keys(d).sort().map(k=>`<tr><td>${k}</td><td class="mut">${P.packDomains&&P.packDomains[k]?'automation':'—'}</td>`+cols.map(c=>`<td class="num">${d[k][c]||''}</td>`).join('')+'</tr>').join('');
+}
+function feed(items){
+  if(!items||!items.length)return;const f=$('feed');if(f.firstElementChild&&f.firstElementChild.tagName==='SPAN')f.innerHTML='';
+  items.forEach(r=>{const d=document.createElement('div');
+    const flips=(r.acts||[]).filter(a=>a.p!==a.g).map(a=>`${a.a}: model ${a.p?'allow':'deny'} / gold ${a.g?'allow':'deny'}`).join('; ');
+    const hd=(r.heads||[]).map(h=>`${h.t}: <b>${h.p}</b> (${h.c}%) vs ${h.g}`).join(', ');
+    d.innerHTML=`<span class="tag" style="background:${COL(r.to)}">${r.to}</span> <span class="mono">${r.k}</span><br><span class="mut">${hd}</span>${flips?'<br>'+flips:''}${r.err?'<br>'+r.err:''}`;
+    f.prepend(d);while(f.children.length>60)f.lastChild.remove()});
+}
+
+// ---- tooltip
+let tipT=null;
+$('grid').addEventListener('mousemove',ev=>{
+  if(!gridMeta||!P)return;const r=$('grid').getBoundingClientRect(),m=gridMeta;
+  const i=Math.floor((ev.clientY-r.top)/(m.cell+m.gap))*m.cols+Math.floor((ev.clientX-r.left)/(m.cell+m.gap));
+  const tip=$('tip');if(i<0||i>=P.tests){tip.style.display='none';return}
+  tip.style.display='block';tip.style.left=Math.min(ev.clientX+14,innerWidth-400)+'px';tip.style.top=(ev.clientY+14)+'px';
+  const s=codes[states[i]];tip.innerHTML=`<b>${keys[i]}</b> <span class="tag" style="background:${COL(s)}">${s}</span>`;
+  clearTimeout(tipT);tipT=setTimeout(()=>fetch('/tests/'+i).then(r=>r.ok?r.json():null).then(v=>{if(!v)return;
+    tip.innerHTML=`<b>${v.k}</b> <span class="tag" style="background:${COL(v.to)}">${v.to}</span><br>`+
+     (v.heads||[]).map(h=>`<div class="mono">${h.t}: model <b>${h.p}</b> (${h.c}%) · gold ${h.g}</div>`).join('')+
+     (v.acts||[]).map(a=>`<div class="mono ${a.p===a.g?'':'no'}">${a.a}: model ${a.p?'allow':'deny'} [${(a.by||[]).join(', ')||'—'}] · gold ${a.g?'allow':'deny'}</div>`).join('')})
+    .catch(()=>{}),120)});
+$('grid').addEventListener('mouseleave',()=>$('tip').style.display='none');
+
+// ---- stream
+function init(d){
+  epoch=d.epoch;codes=d.codes;G=d.graphs;S=d;counts=d.counts||{};edges=d.edges||{};hits=d.policyHits||{};P=d.plan;
+  states=Uint8Array.from(atob(d.states),c=>c.charCodeAt(0));
+  keys=P?P.keys.map(k=>k.split('|')[0]):[];domOf=P?P.keys.map(k=>k.split('|')[1]):[];
+  buildGraph();paintRun();paintLegend();paintPolicies();$('feed').innerHTML='<span class="mut">none yet</span>';feed(d.recent);layoutGrid();paintDomains();
+}
+function delta(d){
+  if(d.epoch!==epoch)return;S=Object.assign(S,{model:d.model,runState:d.runState,runPolicy:d.runPolicy});counts=d.counts;edges=d.edges;hits=d.policyHits;
+  for(const [i,c] of d.changes){states[i]=c;dirty.add(i)}
+  flush();paintRun();paintLegend();paintGraph();paintPolicies();feed(d.recent);paintJob(d.job);if(d.changes.length)paintDomains();
+}
+function connect(){
+  const es=new EventSource('/live');
+  es.addEventListener('init',e=>{$('sub').textContent='streaming';init(JSON.parse(e.data))});
+  es.addEventListener('delta',e=>delta(JSON.parse(e.data)));
+  es.onerror=()=>{$('sub').textContent='reconnecting…'};
+}
+addEventListener('resize',()=>{if(states)layoutGrid()});
+connect();
+</script>
+</body>
+</html>

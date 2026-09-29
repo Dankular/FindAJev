@@ -1,0 +1,48 @@
+// FindAJev policy schema (Cedar). Validated by `findajev policy-test`.
+entity Session;
+entity Item = { domain: String };
+entity Runner;
+entity Model = { license: String, sizeMb: Long, publisher: String };
+
+// Per-test context: one attribute per (domain, head) so packs never collide. minConfidence = lowest head confidence (0-100, uncalibrated softmax).
+type TestCtx = {
+  domain: String,
+  minConfidence: Long,
+  bank_intent?: String,
+  benefit_program?: String,
+  benefit_status?: String,
+  clinic_request?: String,
+  clinic_urgent?: String,
+  email_action?: String,
+  email_category?: String,
+  email_needs_reply?: String,
+  email_phishing?: String,
+  feedback_type?: String,
+  handoff?: String,
+  review_sentiment?: String,
+  support_intent?: String,
+  ticket_pii?: String,
+  ticket_queue?: String,
+  ticket_urgency?: String,
+  travel_intent?: String
+};
+type RunCtx = { threads: Long, cpus: Long };
+
+// Autonomous actions are grouped so guardrails can target them all at once.
+action AutoAct;
+action AutoReply in [AutoAct] appliesTo { principal: [Session], resource: [Item], context: TestCtx };
+action AutoRoute in [AutoAct] appliesTo { principal: [Session], resource: [Item], context: TestCtx };
+action SelfServe in [AutoAct] appliesTo { principal: [Session], resource: [Item], context: TestCtx };
+action BotContinue in [AutoAct] appliesTo { principal: [Session], resource: [Item], context: TestCtx };
+action AutoExecute in [AutoAct] appliesTo { principal: [Session], resource: [Item], context: TestCtx };
+action AutoThank in [AutoAct] appliesTo { principal: [Session], resource: [Item], context: TestCtx };
+action FileBug in [AutoAct] appliesTo { principal: [Session], resource: [Item], context: TestCtx };
+action Quarantine appliesTo { principal: [Session], resource: [Item], context: TestCtx };
+action EscalateHuman appliesTo { principal: [Session], resource: [Item], context: TestCtx };
+action RedactPII appliesTo { principal: [Session], resource: [Item], context: TestCtx };
+action PageOnCall appliesTo { principal: [Session], resource: [Item], context: TestCtx };
+action RequireStepUp appliesTo { principal: [Session], resource: [Item], context: TestCtx };
+
+// Harness-level actions guarding the run lifecycle.
+action FetchModel appliesTo { principal: [Runner], resource: [Model], context: RunCtx };
+action RunModel appliesTo { principal: [Runner], resource: [Model], context: RunCtx };
