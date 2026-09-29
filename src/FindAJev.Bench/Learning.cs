@@ -190,7 +190,10 @@ public static class Curation
         {
             var d = pe.AuthorizeTrain("Review", e.Domain, TrainContext(root, e, "model"));
             if (d.Error is not null) throw new InvalidOperationException(d.Error);
-            if (d.Allow) candidates.Add((e, d));
+            // a human's time is only worth spending on examples that could be admitted once labelled (not no-consent, not a restricted source, not high PII)
+            var admissible = pe.AuthorizeTrain("Admit", e.Domain, TrainContext(root, e, "human"));
+            if (admissible.Error is not null) throw new InvalidOperationException(admissible.Error);
+            if (d.Allow && admissible.Allow) candidates.Add((e, d));
         }
         var budget = (int)Math.Ceiling(ex.Count * sc.ReviewBudgetPct / 100.0);
         var reviewed = candidates.OrderByDescending(c => c.d.Reasons.Length).ThenBy(c => c.e.Margin).ThenBy(c => c.e.Key, StringComparer.Ordinal).Take(budget).Select(c => c.e.Key).ToHashSet();
