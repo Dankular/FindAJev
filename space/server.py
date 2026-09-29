@@ -19,6 +19,30 @@ DLL = ROOT / "bin" / "FindAJev.Bench.dll"
 REGISTRY = {m["id"]: m for m in json.loads((ROOT / "models.json").read_text())}
 DATASET_SIZE = 2600  # single-label decisions in fastino/fast-decisions (see tools/encode.py)
 
+def cpu_info():
+    """CPUs this container may actually use. os.cpu_count() reports the host's cores, which can exceed the cgroup quota."""
+    info = {"os_cpu_count": os.cpu_count(), "affinity": len(os.sched_getaffinity(0)), "cgroup_quota_cpus": None}
+    try:  # cgroup v2: "<quota|max> <period>"
+        q, per = Path("/sys/fs/cgroup/cpu.max").read_text().split()
+        if q != "max":
+            info["cgroup_quota_cpus"] = int(q) / int(per)
+    except (OSError, ValueError):
+        try:  # cgroup v1
+            q = int(Path("/sys/fs/cgroup/cpu/cpu.cfs_quota_us").read_text())
+            per = int(Path("/sys/fs/cgroup/cpu/cpu.cfs_period_us").read_text())
+            if q > 0:
+                info["cgroup_quota_cpus"] = q / per
+        except (OSError, ValueError):
+            pass
+    usable = info["affinity"]
+    if info["cgroup_quota_cpus"]:
+        usable = min(usable, max(1, int(info["cgroup_quota_cpus"])))
+    info["usable_cpus"] = usable
+    return info
+
+
+CPUS = cpu_info()["usable_cpus"]
+
 app = FastAPI(title="FindAJev", description="CPU benchmark of typed-decision models")
 _lock = threading.Lock()
 _jobs: dict[str, dict] = {}
@@ -58,7 +82,7 @@ def auth(authorization: Optional[str] = Header(None)):
 
 class RunRequest(BaseModel):
     model: str
-    threads: int = Field(default_factory=lambda: os.cpu_count() or 1, ge=1, le=256)
+    threads: int = Field(default_factory=lambda: CPUS, ge=1, le=256)
     limit: int = Field(0, ge=0, description=f"0 = all {DATASET_SIZE} decisions")
     warmup: int = Field(20, ge=0)
 
@@ -213,7 +237,7 @@ def root():
 
 @app.get("/info")
 def info():
-    return {"name": "FindAJev", "cpus": os.cpu_count(), "models": list(REGISTRY), "docs": "/docs"}
+    return {"name": "FindAJev", "cpus": CPUS, "cpu_detail": cpu_info(), "models": list(REGISTRY), "docs": "/docs"}
 
 
 @app.get("/models")
@@ -229,10 +253,20 @@ def run(req: RunRequest):
 
 
 @app.post("/run-all", status_code=202, dependencies=[Depends(auth)])
-def run_all(threads: int = os.cpu_count() or 1, limit: int = 0, warmup: int = 20):
-    """Benchmark every registry model sequentially; follow the returned job via its SSE stream."""
-    return start_job(dict(all=True, threads=threads, limit=limit),
-                     [RunRequest(model=m, threads=threads, limit=limit, warmup=warmup) for m in REGISTRY])
+def run_all(threads: int = CPUS, limit: int = 0, warmup: int = 20, skip_done: bool = False):
+    """Benchmark every registry model sequentially; follow the returned job via its SSE stream.
+    skip_done=true skips models that already have a Scored result for the same threads and decision count."""
+    def done(m):
+        f = ROOT / "results" / f"{m}.t{threads}.json"
+        if not f.exists():
+            return False
+        r = json.loads(f.read_text())
+        return r.get("state") == "Scored" and r.get("items") == (limit or DATASET_SIZE)
+    todo = [m for m in REGISTRY if not (skip_done and done(m))]
+    if not todo:
+        raise HTTPException(200, "nothing to do: every model already has a result")
+    return start_job(dict(all=True, threads=threads, limit=limit, skip_done=skip_done),
+                     [RunRequest(model=m, threads=threads, limit=limit, warmup=warmup) for m in todo])
 
 
 @app.get("/jobs")

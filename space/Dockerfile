@@ -12,9 +12,10 @@ RUN dotnet build src/FindAJev.Bench -c Release -o bin -v q
 
 COPY models.json server.py PROJECT.md ./
 COPY tools ./tools
+COPY results ./results
 
 # Spaces run the container as uid 1000
-RUN useradd -m -u 1000 user && mkdir -p /app/models /app/data /app/results /app/.cache && chown -R 1000:1000 /app
+RUN useradd -m -u 1000 user && mkdir -p /app/models /app/data /app/.cache && chown -R 1000:1000 /app
 USER user
 EXPOSE 7860
 CMD ["uvicorn", "server:app", "--host", "0.0.0.0", "--port", "7860"]

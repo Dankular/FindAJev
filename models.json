@@ -5,7 +5,8 @@
     "repo": "nishparadox/gliner2.5-decide-onnx",
     "files": [
       "model_int8.onnx",
-      "tokenizer.json"
+      "tokenizer.json",
+      "gliner_onnx.py"
     ],
     "onnx": "models/gliner2.5-decide-onnx/model_int8.onnx",
     "precision": "int8"
@@ -16,7 +17,8 @@
     "repo": "nishparadox/gliner2.5-decide-onnx",
     "files": [
       "model.onnx",
-      "tokenizer.json"
+      "tokenizer.json",
+      "gliner_onnx.py"
     ],
     "onnx": "models/gliner2.5-decide-onnx/model.onnx",
     "precision": "fp32"
@@ -27,7 +29,8 @@
     "repo": "nishparadox/gliner2.5-decide-onnx",
     "files": [
       "model_fp16.onnx",
-      "tokenizer.json"
+      "tokenizer.json",
+      "gliner_onnx.py"
     ],
     "onnx": "models/gliner2.5-decide-onnx/model_fp16.onnx",
     "precision": "fp16"

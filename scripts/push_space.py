@@ -13,6 +13,10 @@ with tempfile.TemporaryDirectory() as d:
     for name in ("models.json", "requirements.txt"):
         shutil.copy(ROOT / name, d / name)
     shutil.copy(ROOT / "README.md", d / "PROJECT.md")
+    (d / "results").mkdir()  # finished results are baked into the image so they survive Space restarts
+    (d / "results" / ".gitkeep").write_text("")
+    for f in (ROOT / "results").glob("*.json") if (ROOT / "results").exists() else []:
+        shutil.copy(f, d / "results" / f.name)
     for f in (ROOT / "space").iterdir():
         if f.is_file():
             shutil.copy(f, d / f.name)
