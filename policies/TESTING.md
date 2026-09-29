@@ -17,9 +17,12 @@ The *gate* checks (`policy-validate`, `golden-cases`, `conformance`) run before 
 | `mutation` | | break each policy (delete / flip effect / swap literal / relax comparison); a mutant no golden case catches is a hole in the tests |
 | `gold-coverage` | | every dataset row through Cedar on gold labels: which actions fire, which policies never decide anything |
 | `noise-sweep` | | corrupt gold labels at 5–40 % and measure Unsafe / Overblocked rates per pack: fragility to classifier mistakes, no model needed |
+| `admission-properties` | ✅ | learning loop: every combination of consent/licence/PII/flag/consensus/confidence/margin through `training.cedar` vs an independent recomputation (10k requests) |
+| `promotion-gate` | ✅ | learning loop: boundary grid of `promote.cedar` vs an independent recomputation (2.6k combinations) + demo on real results |
+| `curation-sim` | ✅ | learning loop: replays logged predictions through admission; label noise, yield, errors caught; independent leak audit must be 0 (see `docs/LEARNING_LOOP.md`) |
 | `bench` | | Cedar authorization latency per pack |
 
-Current state: 44 policies, 13 packs, 86 golden cases, 115 conformance cases, Cedar 4.13.0 (language 4.5), mutation score 98/98.
+Current state: 76 policies (incl. admission + promotion), 13 packs, 176 golden cases, 115 conformance cases, Cedar 4.13.0 (language 4.5), mutation score 98/98.
 The properties check found 13 real gaps in the first version of the policies (safety `forbid`s with no human path, e.g. `account_closure`
 tickets, `mortgage`, `refund_request`); they are fixed and pinned by golden cases.
 

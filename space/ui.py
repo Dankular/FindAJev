@@ -164,6 +164,15 @@ def checks_html(listing, results):
             if c["id"] == "gold-coverage" and d:
                 body += "<details><summary>domain / action outcomes on gold labels</summary><table><tr><th>pair</th><th>allow</th><th>deny</th></tr>" + "".join(
                     f'<tr><td>{escape(x["pair"])}</td><td>{x["allow"]}</td><td>{x["deny"]}</td></tr>' for x in d) + "</table></details>"
+            if c["id"] == "curation-sim" and d:
+                for st in d:
+                    body += (f"<div style='margin-top:6px'><b>{escape(st['set'])}</b></div><table><tr><th>scenario</th><th>admitted</th><th>human</th><th>self</th><th>label noise %</th>"
+                             "<th>yield %</th><th>errors caught %</th><th>leaks</th></tr>" + "".join(
+                        f'<tr><td>{escape(x["scenario"])}</td><td>{x["admitted"]}</td><td>{x["admittedHuman"]}</td><td>{x["admittedSelf"]}</td><td>{x["labelNoisePct"]}</td>'
+                        f'<td>{x["yieldPct"]}</td><td>{x["errorsCaughtPct"]}</td><td>{x["leakNoConsent"] + x["leakNotOpen"] + x["leakPii"] + x["leakAttackSelf"]}</td></tr>' for x in st["rows"]) + "</table>")
+            if c["id"] == "promotion-gate" and d:
+                body += "<table><tr><th>candidate</th><th>champion</th><th>comparable</th><th>decision</th><th>by</th></tr>" + "".join(
+                    f'<tr><td>{escape(x["candidate"])}</td><td>{escape(x["champion"])}</td><td>{x["comparable"]}</td><td>{"allow" if x["allow"] else "deny"}</td><td>{escape(", ".join(x["by"]))}</td></tr>' for x in d) + "</table>"
             if r["findings"]:
                 body += "<div style='margin-top:6px'><b>findings</b><ul>" + "".join(f"<li><code>{escape(f)}</code></li>" for f in r["findings"][:15]) + "</ul></div>"
         out.append(

@@ -118,6 +118,55 @@ switch (argv.FirstOrDefault())
     case "policy-coverage":
         return PolicyCommands.Coverage(root, argv.ElementAtOrDefault(1) ?? "julia");
 
+    case "promote-check": // promote-check <candidate-id> <champion-id> [--threads N] [--approved] [--principal Human|Learner]: may the candidate replace the champion? (logged to the ledger)
+    {
+        var cand = argv.ElementAtOrDefault(1) ?? throw new ArgumentException("promote-check <candidate-id> <champion-id>");
+        var champ = argv.ElementAtOrDefault(2) ?? throw new ArgumentException("promote-check <candidate-id> <champion-id>");
+        var th = Opt("--threads", "");
+        RunResult Load(string id)
+        {
+            var files = Directory.GetFiles(Path.Combine(root, "results"), $"{id}.t{(th.Length > 0 ? th : "*")}.json");
+            return files.Length > 0 ? JsonSerializer.Deserialize<RunResult>(File.ReadAllText(files.OrderBy(f => f).First()), Json.Opts)! : throw new ArgumentException($"no default-variant result for {id}");
+        }
+        var rc = Load(cand); var rh = Load(champ);
+        var held = Data.Registry(root).Where(x => x.HeldOut).Select(x => x.Id).ToHashSet();
+        var approved = argv.Contains("--approved");
+        var principal = Opt("--principal", "Human");
+        var ctx = Promotion.Context(rc, rh, approved, held);
+        var d = new PolicyEngine(Path.Combine(root, "policies")).AuthorizePromote(principal, cand, ctx);
+        var shown = ctx.ToDictionary(kv => kv.Key, kv => kv.Value.ToString());
+        Ledger.Append(root, "promotion", new { candidate = cand, champion = champ, principal, approved, allow = d.Allow, by = d.Reasons, error = d.Error, context = shown });
+        Console.WriteLine(JsonSerializer.Serialize(new { candidate = cand, champion = champ, principal, allow = d.Allow, by = d.Reasons, error = d.Error, context = shown }, Json.Opts));
+        return d.Allow ? 0 : 3;
+    }
+
+    case "curation-sim": // curation-sim [--budget PCT] [--annotator ACC]: replay recorded predictions through the admission policy (logged to the ledger)
+    {
+        var budget = double.Parse(Opt("--budget", "10"), System.Globalization.CultureInfo.InvariantCulture);
+        var acc = double.Parse(Opt("--annotator", "0.98"), System.Globalization.CultureInfo.InvariantCulture);
+        var (ex, skipped) = Curation.BuildExamples(Curation.LoadPreds(root));
+        if (ex.Count == 0) { Console.Error.WriteLine("no recorded predictions (results/<model>.t<N>.preds.jsonl); run a benchmark first"); return 2; }
+        Console.WriteLine($"{ex.Count} recorded tests ({skipped} skipped: models saw different options)");
+        Console.WriteLine($"{"scenario",-42} {"admit",6} {"human",6} {"self",6} {"noise%",7} {"yield%",7} {"caught%",8} leaks");
+        var summary = new List<object>(); var leaked = false;
+        foreach (var sc in LearningChecks.Scenarios(budget, acc))
+        {
+            var r = Curation.Simulate(root, ex, sc, out _);
+            var lk = r.LeakNoConsent + r.LeakNotOpen + r.LeakPii + r.LeakAttackSelf; if (sc.UseCedar && lk > 0) leaked = true;
+            Console.WriteLine($"{sc.Name,-42} {r.Admitted,6} {r.AdmittedHuman,6} {r.AdmittedSelf,6} {(r.Admitted == 0 ? 0 : 100.0 * r.WrongAdmitted / r.Admitted),7:F2} {100.0 * r.Admitted / r.Examples,7:F1} {100 * r.WrongErrorsCaught,8:F1} {lk}");
+            summary.Add(r);
+        }
+        Ledger.Append(root, "curation-sim", new { examples = ex.Count, budgetPct = budget, annotatorAccuracy = acc, scenarios = summary });
+        return leaked ? 1 : 0;
+    }
+
+    case "ledger-verify":
+    {
+        var (ok, n, problem) = Ledger.Verify(root);
+        Console.WriteLine(ok ? $"ledger OK: {n} entries, chain intact" : $"ledger BROKEN after {n} entries: {problem}");
+        return ok ? 0 : 1;
+    }
+
     case "rank":
         var md = Ranking.Render(Path.Combine(root, "results"));
         File.WriteAllText(Path.Combine(root, "RANKING.md"), md);
@@ -130,7 +179,7 @@ switch (argv.FirstOrDefault())
         return 0;
 
     default:
-        Console.Error.WriteLine("usage: findajev list | run <id> [--threads N --warmup N --repeats N --limit N] | rank | graph");
+        Console.Error.WriteLine("usage: findajev list | run <id> [--threads N --warmup N --repeats N --limit N] | rank | graph | promote-check | curation-sim | ledger-verify");
         return 2;
 }
 }

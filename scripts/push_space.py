@@ -21,7 +21,7 @@ with tempfile.TemporaryDirectory() as d:
     shutil.copy(ROOT / "README.md", d / "PROJECT.md")
     (d / "results").mkdir()  # finished results are baked into the image so they survive Space restarts
     (d / "results" / ".gitkeep").write_text("")
-    for f in (ROOT / "results").glob("*.json") if (ROOT / "results").exists() else []:
+    for f in [*(ROOT / "results").glob("*.json"), *(ROOT / "results").glob("*.preds.jsonl")] if (ROOT / "results").exists() else []:
         shutil.copy(f, d / "results" / f.name)
     for f in (ROOT / "space").iterdir():
         if f.is_file():
